@@ -27,26 +27,27 @@ class WorkflowManager:
             'vishal kumar': ['vishal', 'kumar', 'vishal kumar']
         }
         
-                # --- AI Client Initialization ---
+        # --- AI Client Initialization ---
         self.openai_client = None
 
-        # Debug what we actually see
+        # Log exactly what Config saw
         logger.debug(f"Config.OPENAI_API_KEY            = {bool(Config.OPENAI_API_KEY)}")
         logger.debug(f"Config.ENABLE_OPENAI_ENHANCEMENT = {Config.ENABLE_OPENAI_ENHANCEMENT}")
 
-        # Only initialize if both key + flag are set
+        # Only wire up OpenAI if both the key and flag are present
         if Config.OPENAI_API_KEY and Config.ENABLE_OPENAI_ENHANCEMENT:
             try:
                 import openai
-                # set the global key (your streamlit_app already did this too)
+                # ensure global key is set
                 openai.api_key = Config.OPENAI_API_KEY
-                # reuse the module as “client”
+                # use the module itself as "client"
                 self.openai_client = openai
                 logger.info("🤖 OpenAI client initialized successfully")
             except Exception as e:
                 logger.warning(f"⚠️ Failed to initialize OpenAI client: {e}")
         else:
-            logger.info("🤖 Skipping AI init (key and/or enable flag missing)")
+            logger.info("🤖 Skipping AI init (OPENAI_API_KEY or ENABLE_OPENAI_ENHANCEMENT missing)")
+
 
     
     def _is_employee_excluded(self, employee_name: str) -> bool:
