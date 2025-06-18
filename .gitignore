@@ -1,0 +1,42 @@
+﻿# Environment variables
+.env
+.env.local
+.env.production
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+myenv/
+
+# Logs
+logs/
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets
+secrets.toml
+.streamlit/secrets.toml
+
+# Data files
+*.csv
+*.xlsx
+*.json
+
+# Temporary files
+*.tmp
+*.temp

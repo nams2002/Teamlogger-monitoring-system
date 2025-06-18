@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Work Hours Reminder</title>
+    <!--[if mso]>
+    <noscript>
+        <xml>
+            <o:OfficeDocumentSettings>
+                <o:PixelsPerInch>96</o:PixelsPerInch>
+            </o:OfficeDocumentSettings>
+        </xml>
+    </noscript>
+    <![endif]-->
+    <style>
+        /* Reset styles */
+        body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+        table, td { border-spacing: 0; }
+        img { -ms-interpolation-mode: bicubic; }
+
+        /* Remove default styles */
+        img { border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; }
+        table { border-collapse: collapse !important; }
+        body { height: 100% !important; margin: 0 !important; padding: 0 !important; width: 100% !important; }
+
+        /* Mobile styles */
+        @media screen and (max-width: 600px) {
+            .mobile-hide { display: none !important; }
+            .mobile-center { text-align: center !important; }
+            .container { padding: 10px !important; }
+            .content-table { width: 100% !important; }
+        }
+    </style>
+</head>
+<body style="background-color: #f4f4f4; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+    <table border="0" cellpadding="0" cellspacing="0" width="100%">
+        <tr>
+            <td align="center" style="padding: 40px 0;">
+                <!-- Main Container -->
+                <table class="container content-table" border="0" cellpadding="0" cellspacing="0" width="600" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    
+                    <!-- Content -->
+                    <tr>
+                        <td style="padding: 40px 30px;">
+                            <!-- Greeting -->
+                            <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0; line-height: 1.6;">
+                                Hi <strong>{{ employee_name }}</strong>,
+                            </p>
+                            
+                            <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0; line-height: 1.6;">
+                                I hope you are doing well.
+                            </p>
+                            
+                            <!-- Main Message -->
+                            <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0; line-height: 1.6;">
+                                This email is a reminder that, as per company policy, it is mandatory to complete 40 working hours per week, which equates to 8 hours per day. 
+                                {% if leave_days > 0 %}
+                                We have considered your {{ leave_days }}-day leave. 
+                                {% endif %}
+                                Currently, you have accrued <strong>{{ total_hours }} hours</strong>. This policy is in place to ensure that we maintain a high level of productivity and meet our company goals and deliverables.
+                            </p>
+                            
+                            <!-- Alert Message -->
+                            <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0; line-height: 1.6;">
+                                It has come to our attention that you did not meet the required working hours from <strong>{{ week_start }}</strong> to <strong>{{ week_end }}</strong>. Please help us understand why you did not complete the expected working hours. We understand that you might have some personal circumstances affecting your working hours. Feel free to discuss them with us. Please provide us with the reason by EOD today, <strong>{{ current_date_formatted }}</strong>, so we can discuss the same further.
+                            </p>
+                            
+                            <!-- Summary Table (Optional - can be removed if you want plain text only) -->
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 30px 0; display: none;">
+                                <tr>
+                                    <td style="background-color: #f8f9fa; padding: 20px; border-radius: 8px;">
+                                        <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                                            <tr>
+                                                <td style="padding: 8px 0; color: #666666; font-size: 14px;">Hours Worked:</td>
+                                                <td align="right" style="padding: 8px 0; color: #333333; font-size: 14px; font-weight: 600;">{{ total_hours }} hours</td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 0; color: #666666; font-size: 14px;">Required Hours:</td>
+                                                <td align="right" style="padding: 8px 0; color: #333333; font-size: 14px; font-weight: 600;">{{ required_hours }} hours</td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 0; color: #666666; font-size: 14px;">Shortfall:</td>
+                                                <td align="right" style="padding: 8px 0; color: #d9534f; font-size: 14px; font-weight: 600;">{{ shortfall }} hours</td>
+                                            </tr>
+                                            {% if leave_days > 0 %}
+                                            <tr>
+                                                <td style="padding: 8px 0; color: #666666; font-size: 14px;">Leave Days:</td>
+                                                <td align="right" style="padding: 8px 0; color: #5bc0de; font-size: 14px; font-weight: 600;">{{ leave_days }} days</td>
+                                            </tr>
+                                            {% endif %}
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+                            
+                            <!-- AI Personalized Message (if available) -->
+                            {% if ai_personalized_message %}
+                            <div style="background-color: #e3f2fd; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                                <p style="color: #1976d2; font-size: 14px; margin: 0; line-height: 1.6;">
+                                    {{ ai_personalized_message }}
+                                </p>
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Signature -->
+                            <div style="margin-top: 30px;">
+                                <p style="color: #333333; font-size: 16px; margin: 0; line-height: 1.6;">Regards,</p>
+                            </div>
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                        <td style="background-color: #f8f9fa; padding: 20px 30px; text-align: center; border-radius: 0 0 8px 8px;">
+                            <p style="color: #999999; font-size: 12px; margin: 0;">
+                                This is an automated reminder generated on {{ current_date }}
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
