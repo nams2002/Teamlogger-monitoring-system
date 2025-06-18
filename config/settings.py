@@ -5,14 +5,17 @@ from dotenv import load_dotenv
 # Try to load from .env first (local development)
 load_dotenv()
 
-# For Streamlit Cloud deployment - load from secrets
 def get_env_var(key, default=None):
-    # First try environment variable
-    value = get_env_var(key)
-    if value:
+    """
+    Try to read an environment variable first; if not set,
+    fall back to Streamlit secrets; finally return default.
+    """
+    # 1) OS environment
+    value = os.getenv(key, None)
+    if value is not None:
         return value
-    
-    # Then try streamlit secrets
+
+    # 2) Streamlit secrets (Cloud)
     try:
         return st.secrets.get(key, default)
     except:
