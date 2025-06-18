@@ -11,6 +11,26 @@ from datetime import datetime, timedelta
 import time
 from typing import Dict, List
 import logging
+import os
+from dotenv import load_dotenv
+load_dotenv()
+# 1b) Grab the key from Streamlit Cloud secrets or the environment
+OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY")
+ENABLE_OPENAI = (st.secrets.get("ENABLE_OPENAI_ENHANCEMENT", "false").lower() == "true") 
+            
+
+# 1c) If we have it, inject it into both openai and os.environ
+if OPENAI_API_KEY and ENABLE_OPENAI:
+    import openai
+    openai.api_key = OPENAI_API_KEY
+    os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
+else:
+    st.warning("🤖 AI Intelligence Inactive — make sure you have both OPENAI_API_KEY and ENABLE_OPENAI_ENHANCEMENT set in your secrets")
+
+# 3) Now it’s safe to import & instantiate your manager
+from src.workflow_manager import WorkflowManager
+if 'workflow_manager' not in st.session_state:
+    st.session_state.workflow_manager = WorkflowManager()
 
 # Import system components
 from src.workflow_manager import WorkflowManager

@@ -1,9 +1,23 @@
 import os
+import streamlit as st
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
+# Try to load from .env first (local development)
 load_dotenv()
 
+# For Streamlit Cloud deployment - load from secrets
+def get_env_var(key, default=None):
+    # First try environment variable
+    value = get_env_var(key)
+    if value:
+        return value
+    
+    # Then try streamlit secrets
+    try:
+        return st.secrets.get(key, default)
+    except:
+        return default
+    
 class Config:
     """
     Configuration class for Employee Hours Monitoring System
@@ -11,23 +25,23 @@ class Config:
     """
     
     # TeamLogger Configuration
-    TEAMLOGGER_API_URL = os.getenv('TEAMLOGGER_API_URL')
-    TEAMLOGGER_BEARER_TOKEN = os.getenv('TEAMLOGGER_BEARER_TOKEN')
+    TEAMLOGGER_API_URL = get_env_var('TEAMLOGGER_API_URL')
+    TEAMLOGGER_BEARER_TOKEN = get_env_var('TEAMLOGGER_BEARER_TOKEN')
     
     # Google Sheets Configuration - FORCE REAL-TIME
-    GOOGLE_SHEETS_ID = os.getenv('GOOGLE_SHEETS_ID', '1RJt6TXG_x5EmTWX6YNyC9qiCCEVsmb4lBjTUe2Ua8Yk')
-    GOOGLE_SHEETS_URL = os.getenv('GOOGLE_SHEETS_URL', 'https://docs.google.com/spreadsheets/d/1RJt6TXG_x5EmTWX6YNyC9qiCCEVsmb4lBjTUe2Ua8Yk/edit?gid=1013361163#gid=1013361163')
-    GOOGLE_SHEETS_PUBLISHED_CSV_URL = os.getenv("GOOGLE_SHEETS_PUBLISHED_CSV_URL")
+    GOOGLE_SHEETS_ID = get_env_var('GOOGLE_SHEETS_ID', '1RJt6TXG_x5EmTWX6YNyC9qiCCEVsmb4lBjTUe2Ua8Yk')
+    GOOGLE_SHEETS_URL = get_env_var('GOOGLE_SHEETS_URL', 'https://docs.google.com/spreadsheets/d/1RJt6TXG_x5EmTWX6YNyC9qiCCEVsmb4lBjTUe2Ua8Yk/edit?gid=1013361163#gid=1013361163')
+    GOOGLE_SHEETS_PUBLISHED_CSV_URL = get_env_var("GOOGLE_SHEETS_PUBLISHED_CSV_URL")
     
     # Email Configuration
-    SMTP_HOST = os.getenv('SMTP_HOST', 'smtp.gmail.com')
-    SMTP_PORT = int(os.getenv('SMTP_PORT', '587'))
-    SMTP_USERNAME = os.getenv('SMTP_USERNAME')
-    SMTP_PASSWORD = os.getenv('SMTP_PASSWORD')
-    FROM_EMAIL = os.getenv('FROM_EMAIL')
+    SMTP_HOST = get_env_var('SMTP_HOST', 'smtp.gmail.com')
+    SMTP_PORT = int(get_env_var('SMTP_PORT', '587'))
+    SMTP_USERNAME = get_env_var('SMTP_USERNAME')
+    SMTP_PASSWORD = get_env_var('SMTP_PASSWORD')
+    FROM_EMAIL = get_env_var('FROM_EMAIL')
     
     # Alert CC Emails
-    _cc_emails = os.getenv('ALERT_CC_EMAILS', '')
+    _cc_emails = get_env_var('ALERT_CC_EMAILS', '')
     ALERT_CC_EMAILS = [email.strip() for email in _cc_emails.split(',') if email.strip()] if _cc_emails else []
     CONSTANT_CC_EMAIL = 'teamhr@rapidinnovation.dev'
     
@@ -39,7 +53,7 @@ class Config:
     ]
     
     # OpenAI Configuration
-    OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+    OPENAI_API_KEY = get_env_var('OPENAI_API_KEY')
     
     # 5-DAY WORK SYSTEM CONFIGURATION
     MINIMUM_HOURS_PER_WEEK = 40
@@ -54,7 +68,7 @@ class Config:
     WEEKEND_DAYS = [5, 6]
     MONITORING_PERIOD_DAYS = 7
     
-    CHECK_INTERVAL_HOURS = int(os.getenv('CHECK_INTERVAL_HOURS', '24'))
+    CHECK_INTERVAL_HOURS = int(get_env_var('CHECK_INTERVAL_HOURS', '24'))
     
     # Schedule configuration
     EXECUTION_DAY = 0  # Monday
@@ -66,62 +80,62 @@ class Config:
     MINIMUM_SHORTFALL_MINUTES = 0  # Disabled - using buffer only
     
     # Time Zone Configuration
-    TIMEZONE = os.getenv('TIMEZONE', 'Asia/Kolkata')
+    TIMEZONE = get_env_var('TIMEZONE', 'Asia/Kolkata')
     
     # Logging Configuration
-    LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
-    LOG_FILE = os.getenv('LOG_FILE', 'logs/app.log')
+    LOG_LEVEL = get_env_var('LOG_LEVEL', 'INFO')
+    LOG_FILE = get_env_var('LOG_FILE', 'logs/app.log')
     
     # Application Configuration
-    APP_NAME = os.getenv('APP_NAME', 'Employee Hours Monitor')
-    APP_VERSION = os.getenv('APP_VERSION', '4.0.0')
+    APP_NAME = get_env_var('APP_NAME', 'Employee Hours Monitor')
+    APP_VERSION = get_env_var('APP_VERSION', '4.0.0')
     
     # Security Configuration
-    SECRET_KEY = os.getenv('SECRET_KEY', 'default-secret-key-change-in-production')
+    SECRET_KEY = get_env_var('SECRET_KEY', 'default-secret-key-change-in-production')
     
     # Database Configuration
-    DATABASE_URL = os.getenv('DATABASE_URL')
+    DATABASE_URL = get_env_var('DATABASE_URL')
     
     # Feature Flags
-    ENABLE_EMAIL_ALERTS = os.getenv('ENABLE_EMAIL_ALERTS', 'true').lower() == 'true'
-    ENABLE_SLACK_NOTIFICATIONS = os.getenv('ENABLE_SLACK_NOTIFICATIONS', 'false').lower() == 'true'
-    ENABLE_OPENAI_ENHANCEMENT = os.getenv('ENABLE_OPENAI_ENHANCEMENT', 'false').lower() == 'true'  # Disabled by default
-    ENABLE_AI_INTELLIGENT_DECISIONS = os.getenv('ENABLE_AI_INTELLIGENT_DECISIONS', 'false').lower() == 'true'
+    ENABLE_EMAIL_ALERTS = get_env_var('ENABLE_EMAIL_ALERTS', 'true').lower() == 'true'
+    ENABLE_SLACK_NOTIFICATIONS = get_env_var('ENABLE_SLACK_NOTIFICATIONS', 'false').lower() == 'true'
+    ENABLE_OPENAI_ENHANCEMENT = get_env_var('ENABLE_OPENAI_ENHANCEMENT', 'false').lower() == 'true'  # Disabled by default
+    ENABLE_AI_INTELLIGENT_DECISIONS = get_env_var('ENABLE_AI_INTELLIGENT_DECISIONS', 'false').lower() == 'true'
     
     # Activity Monitoring Configuration
-    ENABLE_ACTIVITY_MONITORING = os.getenv('ENABLE_ACTIVITY_MONITORING', 'true').lower() == 'true'
-    ACTIVITY_THRESHOLD = float(os.getenv('ACTIVITY_THRESHOLD', '60'))
-    CONSECUTIVE_LOW_DAYS = int(os.getenv('CONSECUTIVE_LOW_DAYS', '3'))
-    ACTIVITY_CHECK_SCREENSHOTS = os.getenv('ACTIVITY_CHECK_SCREENSHOTS', 'true').lower() == 'true'
+    ENABLE_ACTIVITY_MONITORING = get_env_var('ENABLE_ACTIVITY_MONITORING', 'true').lower() == 'true'
+    ACTIVITY_THRESHOLD = float(get_env_var('ACTIVITY_THRESHOLD', '60'))
+    CONSECUTIVE_LOW_DAYS = int(get_env_var('CONSECUTIVE_LOW_DAYS', '3'))
+    ACTIVITY_CHECK_SCREENSHOTS = get_env_var('ACTIVITY_CHECK_SCREENSHOTS', 'true').lower() == 'true'
     
     # Combined Monitoring Configuration
-    ENABLE_COMBINED_MONITORING = os.getenv('ENABLE_COMBINED_MONITORING', 'true').lower() == 'true'
-    CRITICAL_ALERT_THRESHOLD = float(os.getenv('CRITICAL_ALERT_THRESHOLD', '40'))
+    ENABLE_COMBINED_MONITORING = get_env_var('ENABLE_COMBINED_MONITORING', 'true').lower() == 'true'
+    CRITICAL_ALERT_THRESHOLD = float(get_env_var('CRITICAL_ALERT_THRESHOLD', '40'))
     
     # Senior Management Emails
-    SENIOR_MANAGEMENT_EMAILS = os.getenv('SENIOR_MANAGEMENT_EMAILS', '').split(',') if os.getenv('SENIOR_MANAGEMENT_EMAILS') else []
+    SENIOR_MANAGEMENT_EMAILS = get_env_var('SENIOR_MANAGEMENT_EMAILS', '').split(',') if get_env_var('SENIOR_MANAGEMENT_EMAILS') else []
     
     # Report Generation Configuration
-    GENERATE_PDF_REPORTS = os.getenv('GENERATE_PDF_REPORTS', 'false').lower() == 'true'
-    REPORT_STORAGE_PATH = os.getenv('REPORT_STORAGE_PATH', 'reports/')
+    GENERATE_PDF_REPORTS = get_env_var('GENERATE_PDF_REPORTS', 'false').lower() == 'true'
+    REPORT_STORAGE_PATH = get_env_var('REPORT_STORAGE_PATH', 'reports/')
     
     # Enhanced Monitoring Schedule
-    ACTIVITY_CHECK_SCHEDULE = os.getenv('ACTIVITY_CHECK_SCHEDULE', 'daily')
-    ACTIVITY_CHECK_TIME = os.getenv('ACTIVITY_CHECK_TIME', '18:00')
+    ACTIVITY_CHECK_SCHEDULE = get_env_var('ACTIVITY_CHECK_SCHEDULE', 'daily')
+    ACTIVITY_CHECK_TIME = get_env_var('ACTIVITY_CHECK_TIME', '18:00')
     
     # Performance Thresholds
-    PERFORMANCE_EXCELLENT = float(os.getenv('PERFORMANCE_EXCELLENT', '90'))
-    PERFORMANCE_GOOD = float(os.getenv('PERFORMANCE_GOOD', '70'))
-    PERFORMANCE_NEEDS_IMPROVEMENT = float(os.getenv('PERFORMANCE_NEEDS_IMPROVEMENT', '50'))
+    PERFORMANCE_EXCELLENT = float(get_env_var('PERFORMANCE_EXCELLENT', '90'))
+    PERFORMANCE_GOOD = float(get_env_var('PERFORMANCE_GOOD', '70'))
+    PERFORMANCE_NEEDS_IMPROVEMENT = float(get_env_var('PERFORMANCE_NEEDS_IMPROVEMENT', '50'))
     
     # Slack Configuration
-    SLACK_BOT_TOKEN = os.getenv('SLACK_BOT_TOKEN')
-    SLACK_CHANNEL = os.getenv('SLACK_CHANNEL', '#hr-alerts')
+    SLACK_BOT_TOKEN = get_env_var('SLACK_BOT_TOKEN')
+    SLACK_CHANNEL = get_env_var('SLACK_CHANNEL', '#hr-alerts')
     
     # Performance Configuration
-    API_REQUEST_TIMEOUT = int(os.getenv('API_REQUEST_TIMEOUT', '30'))
-    MAX_RETRY_ATTEMPTS = int(os.getenv('MAX_RETRY_ATTEMPTS', '3'))
-    BATCH_SIZE = int(os.getenv('BATCH_SIZE', '10'))
+    API_REQUEST_TIMEOUT = int(get_env_var('API_REQUEST_TIMEOUT', '30'))
+    MAX_RETRY_ATTEMPTS = int(get_env_var('MAX_RETRY_ATTEMPTS', '3'))
+    BATCH_SIZE = int(get_env_var('BATCH_SIZE', '10'))
 
     @classmethod
     def validate(cls) -> tuple[bool, list]:
@@ -315,9 +329,9 @@ class Config:
     @classmethod
     def is_production(cls) -> bool:
         """Check if running in production environment"""
-        return os.getenv('ENVIRONMENT', 'development').lower() == 'production'
+        return get_env_var('ENVIRONMENT', 'development').lower() == 'production'
     
     @classmethod
     def is_development(cls) -> bool:
         """Check if running in development environment"""
-        return os.getenv('ENVIRONMENT', 'development').lower() == 'development'
+        return get_env_var('ENVIRONMENT', 'development').lower() == 'development'
