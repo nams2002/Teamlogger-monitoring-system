@@ -31,13 +31,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-st.sidebar.markdown("### 🔍 Debug Secrets & Env")
-st.sidebar.write("**st.secrets keys:**", list(st.secrets.keys()))
-st.sidebar.write("**st.secrets OPENAI_API_KEY:**", st.secrets.get("OPENAI_API_KEY"))
-st.sidebar.write("**st.secrets ENABLE_OPENAI_ENHANCEMENT:**", st.secrets.get("ENABLE_OPENAI_ENHANCEMENT"))
-st.sidebar.write("**os.getenv OPENAI_API_KEY:**", os.getenv("OPENAI_API_KEY"))
-st.sidebar.write("**os.getenv ENABLE_OPENAI_ENHANCEMENT:**", os.getenv("ENABLE_OPENAI_ENHANCEMENT"))
-
 # 1) Setup OpenAI BEFORE importing WorkflowManager
 OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY", os.getenv("OPENAI_API_KEY"))
 ENABLE_OPENAI = st.secrets.get("ENABLE_OPENAI_ENHANCEMENT", os.getenv("ENABLE_OPENAI_ENHANCEMENT", "false")).lower() == "true"
