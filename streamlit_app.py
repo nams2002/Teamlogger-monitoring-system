@@ -4,6 +4,15 @@ Main application entry point with AI intelligence and corrected hours display
 """
 
 import streamlit as st
+import os
+
+st.sidebar.markdown("### 🔍 Debug Secrets & Env")
+st.sidebar.write("**st.secrets keys:**", list(st.secrets.keys()))
+st.sidebar.write("**st.secrets OPENAI_API_KEY:**", st.secrets.get("OPENAI_API_KEY"))
+st.sidebar.write("**st.secrets ENABLE_OPENAI_ENHANCEMENT:**", st.secrets.get("ENABLE_OPENAI_ENHANCEMENT"))
+st.sidebar.write("**os.getenv OPENAI_API_KEY:**", os.getenv("OPENAI_API_KEY"))
+st.sidebar.write("**os.getenv ENABLE_OPENAI_ENHANCEMENT:**", os.getenv("ENABLE_OPENAI_ENHANCEMENT"))
+
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -11,7 +20,6 @@ from datetime import datetime, timedelta
 import time
 from typing import Dict, List
 import logging
-import os
 from dotenv import load_dotenv
 
 # Load environment variables
