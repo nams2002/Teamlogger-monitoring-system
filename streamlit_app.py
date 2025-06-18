@@ -13,34 +13,13 @@ from typing import Dict, List
 import logging
 import os
 from dotenv import load_dotenv
+
+# Load environment variables
 load_dotenv()
-# 1b) Grab the key from Streamlit Cloud secrets or the environment
-OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY")
-ENABLE_OPENAI = (st.secrets.get("ENABLE_OPENAI_ENHANCEMENT", "false").lower() == "true") 
-            
 
-# 1c) If we have it, inject it into both openai and os.environ
-if OPENAI_API_KEY and ENABLE_OPENAI:
-    import openai
-    openai.api_key = OPENAI_API_KEY
-    os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
-else:
-    st.warning("🤖 AI Intelligence Inactive — make sure you have both OPENAI_API_KEY and ENABLE_OPENAI_ENHANCEMENT set in your secrets")
-
-# 3) Now it’s safe to import & instantiate your manager
-from src.workflow_manager import WorkflowManager
-if 'workflow_manager' not in st.session_state:
-    st.session_state.workflow_manager = WorkflowManager()
-
-# Import system components
-from src.workflow_manager import WorkflowManager
-from src.teamlogger_client import TeamLoggerClient
-from src.googlesheets_Client import GoogleSheetsLeaveClient
-from src.email_service import EmailService
+# Configure logging first
 from config.settings import Config
 from src.utils import setup_logging
-
-# Configure logging
 setup_logging(Config.LOG_LEVEL, Config.LOG_FILE)
 logger = logging.getLogger(__name__)
 
@@ -51,6 +30,40 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# 1) Setup OpenAI BEFORE importing WorkflowManager
+OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY", os.getenv("OPENAI_API_KEY"))
+ENABLE_OPENAI = st.secrets.get("ENABLE_OPENAI_ENHANCEMENT", os.getenv("ENABLE_OPENAI_ENHANCEMENT", "false")).lower() == "true"
+
+# 2) If we have the key and it's enabled, set it up
+if OPENAI_API_KEY and ENABLE_OPENAI:
+    try:
+        import openai
+        openai.api_key = OPENAI_API_KEY
+        os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
+        logger.info("OpenAI API key configured successfully")
+    except Exception as e:
+        logger.error(f"Error setting up OpenAI: {e}")
+        st.error(f"Error setting up OpenAI: {e}")
+else:
+    if not OPENAI_API_KEY:
+        logger.warning("OPENAI_API_KEY not found in secrets or environment")
+    if not ENABLE_OPENAI:
+        logger.warning("ENABLE_OPENAI_ENHANCEMENT is not set to true")
+
+# 3) NOW import WorkflowManager and other components AFTER OpenAI setup
+from src.workflow_manager import WorkflowManager
+from src.teamlogger_client import TeamLoggerClient
+from src.googlesheets_Client import GoogleSheetsLeaveClient
+from src.email_service import EmailService
+
+# Initialize session state
+if 'workflow_manager' not in st.session_state:
+    st.session_state.workflow_manager = WorkflowManager()
+if 'last_refresh' not in st.session_state:
+    st.session_state.last_refresh = datetime.now()
+if 'system_status' not in st.session_state:
+    st.session_state.system_status = {}
 
 # Custom CSS for AI theme
 st.markdown("""
@@ -75,14 +88,6 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
-
-# Initialize session state
-if 'workflow_manager' not in st.session_state:
-    st.session_state.workflow_manager = WorkflowManager()
-if 'last_refresh' not in st.session_state:
-    st.session_state.last_refresh = datetime.now()
-if 'system_status' not in st.session_state:
-    st.session_state.system_status = {}
 
 def get_system_status():
     """Get current system status and connectivity including AI status"""
@@ -112,9 +117,23 @@ def get_system_status():
         email = EmailService()
         status['email'] = email.test_email_configuration()
         
-        # Check AI Intelligence
+        # Check AI Intelligence - Updated check
         workflow = st.session_state.workflow_manager
-        status['ai_intelligence'] = hasattr(workflow, 'openai_client') and workflow.openai_client is not None
+        # Check if OpenAI is actually configured in the workflow manager
+        status['ai_intelligence'] = (
+            hasattr(workflow, 'openai_client') and 
+            workflow.openai_client is not None and
+            Config.ENABLE_OPENAI_ENHANCEMENT and
+            bool(Config.OPENAI_API_KEY)
+        )
+        
+        # Debug logging
+        logger.info(f"AI Intelligence Status Check:")
+        logger.info(f"  - Has openai_client: {hasattr(workflow, 'openai_client')}")
+        logger.info(f"  - openai_client is not None: {hasattr(workflow, 'openai_client') and workflow.openai_client is not None}")
+        logger.info(f"  - ENABLE_OPENAI_ENHANCEMENT: {Config.ENABLE_OPENAI_ENHANCEMENT}")
+        logger.info(f"  - Has API Key: {bool(Config.OPENAI_API_KEY)}")
+        logger.info(f"  - Final AI status: {status['ai_intelligence']}")
         
         # Check scheduling
         status['is_alert_day'] = workflow.should_send_alerts_today()
@@ -130,6 +149,7 @@ def get_system_status():
         
     except Exception as e:
         logger.error(f"Error getting system status: {e}")
+        st.error(f"Error getting system status: {str(e)}")
     
     return status
 
@@ -195,7 +215,13 @@ def display_dashboard():
         </div>
         """, unsafe_allow_html=True)
     else:
-        st.warning("🤖 **AI Intelligence Disabled** - Add OPENAI_API_KEY to enable smart features")
+        # More detailed message about why AI is disabled
+        if not Config.OPENAI_API_KEY:
+            st.warning("🤖 **AI Intelligence Disabled** - OPENAI_API_KEY not found in configuration")
+        elif not Config.ENABLE_OPENAI_ENHANCEMENT:
+            st.warning("🤖 **AI Intelligence Disabled** - ENABLE_OPENAI_ENHANCEMENT is not set to true")
+        else:
+            st.warning("🤖 **AI Intelligence Disabled** - WorkflowManager not properly initialized with OpenAI")
     
     # Quick Actions
     st.markdown("---")
@@ -284,7 +310,7 @@ def preview_alerts():
             )
     except Exception as e:
         st.error(f"Error generating preview: {str(e)}")
-        logger.error(f"Preview error: {e}")
+        logger.error(f"Preview error: {e}", exc_info=True)
 
 def generate_work_week_report():
     """Generate and display work week statistics"""
@@ -339,7 +365,7 @@ def generate_work_week_report():
     
     except Exception as e:
         st.error(f"Error generating report: {str(e)}")
-        logger.error(f"Report generation error: {e}")
+        logger.error(f"Report generation error: {e}", exc_info=True)
 
 def test_system_components():
     """Test all system components including AI intelligence"""
@@ -384,18 +410,41 @@ def test_system_components():
         except Exception as e:
             st.error(f"❌ Error: {str(e)}")
     
-    # AI Intelligence Test
+    # AI Intelligence Test - Enhanced
     with st.expander("🤖 AI Intelligence Test", expanded=True):
         try:
+            st.write("**Configuration Check:**")
+            st.write(f"- OPENAI_API_KEY present: {'✅' if Config.OPENAI_API_KEY else '❌'}")
+            st.write(f"- ENABLE_OPENAI_ENHANCEMENT: {'✅' if Config.ENABLE_OPENAI_ENHANCEMENT else '❌'}")
+            
             workflow = st.session_state.workflow_manager
+            st.write("\n**WorkflowManager Check:**")
+            st.write(f"- Has openai_client attribute: {'✅' if hasattr(workflow, 'openai_client') else '❌'}")
+            st.write(f"- openai_client is configured: {'✅' if (hasattr(workflow, 'openai_client') and workflow.openai_client is not None) else '❌'}")
+            
             if hasattr(workflow, 'openai_client') and workflow.openai_client:
-                st.success("✅ AI Intelligence configured")
-                st.info("OpenAI client initialized")
+                st.success("✅ AI Intelligence is properly configured and ready")
+                
+                # Test AI functionality
+                if st.button("Test AI Message Generation"):
+                    try:
+                        test_message = workflow._generate_ai_enhanced_message(
+                            "Test Employee",
+                            35.0,
+                            40.0,
+                            0,
+                            5.0
+                        )
+                        st.success("✅ AI message generation successful!")
+                        st.text_area("Generated Message:", test_message, height=200)
+                    except Exception as e:
+                        st.error(f"❌ AI test failed: {str(e)}")
             else:
                 st.warning("⚠️ AI Intelligence not configured")
-                st.info("Add OPENAI_API_KEY to enable AI features")
+                st.info("Ensure OPENAI_API_KEY and ENABLE_OPENAI_ENHANCEMENT are set in your configuration")
         except Exception as e:
-            st.error(f"❌ Error: {str(e)}")
+            st.error(f"❌ Error testing AI: {str(e)}")
+            logger.error(f"AI test error: {e}", exc_info=True)
 
 def display_work_week_summary():
     """Display current work week summary with corrected hours"""
@@ -430,7 +479,7 @@ def display_configuration_summary():
     
     try:
         config_summary = Config.get_config_summary()
-        ai_status = Config.get_ai_status() if hasattr(Config, 'get_ai_status') else {'enabled': False}
+        ai_status = Config.get_ai_status()
         
         col1, col2 = st.columns(2)
         
@@ -464,7 +513,11 @@ def display_configuration_summary():
                 st.write("- ✅ Personalized Messages")
                 st.write("- ✅ Context Analysis")
             else:
-                st.write("- ❌ AI Disabled (Add OPENAI_API_KEY)")
+                st.write("- ❌ AI Disabled")
+                if not ai_status['api_key_configured']:
+                    st.write("  (Missing OPENAI_API_KEY)")
+                elif not Config.ENABLE_OPENAI_ENHANCEMENT:
+                    st.write("  (ENABLE_OPENAI_ENHANCEMENT not true)")
             
             st.markdown("**Excluded Employees**")
             if 'excluded_employees' in config_summary:
@@ -472,6 +525,7 @@ def display_configuration_summary():
                     st.write(f"- {emp}")
     except Exception as e:
         st.error(f"Error displaying configuration: {str(e)}")
+        logger.error(f"Configuration display error: {e}", exc_info=True)
 
 # Sidebar navigation
 with st.sidebar:
@@ -507,7 +561,12 @@ with st.sidebar:
         st.write("- Personalized messages")
     else:
         st.warning("🤖 **AI Intelligence Inactive**")
-        st.write("- Add OPENAI_API_KEY to enable")
+        if not Config.OPENAI_API_KEY:
+            st.write("- Missing OPENAI_API_KEY")
+        elif not Config.ENABLE_OPENAI_ENHANCEMENT:
+            st.write("- ENABLE_OPENAI_ENHANCEMENT not true")
+        else:
+            st.write("- WorkflowManager init issue")
     
     st.markdown("---")
     
@@ -523,7 +582,7 @@ try:
     display_dashboard()
 except Exception as e:
     st.error(f"Error loading dashboard: {str(e)}")
-    logger.error(f"Dashboard error: {e}")
+    logger.error(f"Dashboard error: {e}", exc_info=True)
 
 # Auto-refresh functionality
 if st.checkbox("Enable auto-refresh (30 seconds)", value=False):
