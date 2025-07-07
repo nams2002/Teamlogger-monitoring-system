@@ -197,13 +197,15 @@ class WorkflowManager:
         logger.info(f"  Required: {required_hours:.1f}h, Shortfall: {shortfall:.1f}h")
         logger.info(f"  Leave days: {leave_days}")
         
-        # Create email data
+        # Create email data with idle time information
         email_data = {
             'email': employee_email,
             'name': employee_name,
             'week_start': work_week_start.strftime('%Y-%m-%d'),
             'week_end': work_week_end.strftime('%Y-%m-%d'),
-            'total_hours': round(actual_hours_worked, 2),
+            'total_hours': round(actual_hours_worked, 2),  # Now represents active hours (total - idle)
+            'original_total_hours': round(weekly_data.get('original_total_hours', actual_hours_worked), 2),
+            'idle_hours': round(weekly_data.get('idle_hours', 0), 2),
             'required_hours': round(required_hours, 2),
             'acceptable_hours': round(acceptable_hours, 2),
             'shortfall': round(shortfall, 2),

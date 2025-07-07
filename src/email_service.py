@@ -270,7 +270,9 @@ class EmailService:
                 'employee_name': real_employee_data['name'],
                 'week_start': real_employee_data['week_start'],
                 'week_end': real_employee_data['week_end'],
-                'total_hours': real_employee_data['total_hours'],
+                'total_hours': real_employee_data['total_hours'],  # Now represents active hours
+                'original_total_hours': real_employee_data.get('original_total_hours', real_employee_data['total_hours']),
+                'idle_hours': real_employee_data.get('idle_hours', 0),
                 'required_hours': real_employee_data['required_hours'],
                 'shortfall': round(shortfall_hours, 2),
                 'shortfall_minutes': shortfall_minutes,

@@ -166,16 +166,20 @@ class TeamLoggerClient:
                 return None
             
             # Extract hours from the data with multiple methods
-            total_hours = self._extract_total_hours(employee_data)
-            
+            active_hours = self._extract_total_hours(employee_data)  # Now returns active hours (total - idle)
+            idle_hours = self._extract_idle_hours(employee_data)
+            original_total_hours = active_hours + idle_hours
+
             # Calculate actual working days in the period
             working_days = self._count_working_days(start_date, end_date)
-            
-            logger.debug(f"Employee {employee_id}: {total_hours:.2f} hours over {working_days} working days")
-            
+
+            logger.debug(f"Employee {employee_id}: {active_hours:.2f} active hours (original: {original_total_hours:.2f}h, idle: {idle_hours:.2f}h) over {working_days} working days")
+
             return {
                 'employee_id': employee_id,
-                'total_hours': round(total_hours, 2),
+                'total_hours': round(active_hours, 2),  # Now represents active hours for monitoring
+                'original_total_hours': round(original_total_hours, 2),  # Original logged hours
+                'idle_hours': round(idle_hours, 2),  # Idle time excluded
                 'days_worked': working_days,
                 'start_date': start_date.date(),
                 'end_date': end_date.date(),
@@ -189,22 +193,40 @@ class TeamLoggerClient:
     
     def _extract_total_hours(self, employee_data: Dict) -> float:
         """
-        Extract total hours from employee data with multiple fallback methods
-        TeamLogger API can return hours in different formats
+        Extract ACTIVE work hours from employee data (total hours minus idle time)
+        This provides real working hours by excluding idle time for accurate monitoring
         """
         total_hours = 0
-        
+        idle_hours = 0
+
         try:
+            # Method 0: Check for direct totalHours field (most reliable)
+            if 'totalHours' in employee_data:
+                total_hours = employee_data['totalHours']
+                if isinstance(total_hours, (int, float)) and total_hours > 0:
+                    logger.debug(f"Found totalHours: {total_hours:.2f} hours")
+
+                    # Extract idle time to subtract from total
+                    idle_hours = self._extract_idle_hours(employee_data)
+                    active_hours = max(0, total_hours - idle_hours)
+
+                    logger.info(f"📊 Hours calculation - Total: {total_hours:.2f}h, Idle: {idle_hours:.2f}h, Active: {active_hours:.2f}h")
+                    return active_hours
+
             # Method 1: Check totChart for time data (most common)
             if 'totChart' in employee_data and isinstance(employee_data['totChart'], dict):
                 for key, value in employee_data['totChart'].items():
                     if isinstance(value, (int, float)) and value > 0:
                         # Values in totChart are typically in seconds
                         total_hours += value / 3600  # Convert seconds to hours
-                
+
                 if total_hours > 0:
-                    logger.debug(f"Extracted {total_hours:.2f} hours from totChart")
-                    return total_hours
+                    # Extract idle time to subtract from total
+                    idle_hours = self._extract_idle_hours(employee_data)
+                    active_hours = max(0, total_hours - idle_hours)
+
+                    logger.info(f"📊 Hours calculation - Total: {total_hours:.2f}h, Idle: {idle_hours:.2f}h, Active: {active_hours:.2f}h")
+                    return active_hours
             
             # Method 2: Check actChart for activity data
             if 'actChart' in employee_data and isinstance(employee_data['actChart'], dict):
@@ -281,7 +303,69 @@ class TeamLoggerClient:
         except Exception as e:
             logger.error(f"Error extracting hours: {str(e)}")
             return 0
-    
+
+    def _extract_idle_hours(self, employee_data: Dict) -> float:
+        """
+        Extract idle time from employee data
+        Returns idle hours that should be subtracted from total hours
+        """
+        idle_hours = 0
+
+        try:
+            # Method 1: Direct idleHours field (most reliable)
+            if 'idleHours' in employee_data:
+                value = employee_data['idleHours']
+                if isinstance(value, (int, float)) and value >= 0:
+                    idle_hours = value
+                    logger.debug(f"Found idleHours: {idle_hours:.2f} hours")
+                    return idle_hours
+
+            # Method 2: Calculate from active/inactive seconds
+            if ('activeSecondsCount' in employee_data and
+                'inactiveSecondsCount' in employee_data and
+                'totalSecondsCount' in employee_data):
+
+                total_seconds = employee_data.get('totalSecondsCount', 0)
+                inactive_seconds = employee_data.get('inactiveSecondsCount', 0)
+
+                if total_seconds > 0 and inactive_seconds > 0:
+                    # Calculate idle time as a portion of inactive time
+                    # Use inactive seconds as idle time (conservative approach)
+                    idle_hours = inactive_seconds / 3600
+                    logger.debug(f"Calculated idle from seconds - Total: {total_seconds}s, Inactive: {inactive_seconds}s, Idle: {idle_hours:.2f}h")
+                    return idle_hours
+
+            # Method 3: Look for other idle-related fields
+            idle_fields = ['idle_time', 'inactiveTime', 'inactive_time', 'breakTime', 'break_time']
+            for field in idle_fields:
+                if field in employee_data:
+                    value = employee_data[field]
+                    if isinstance(value, (int, float)) and value > 0:
+                        # Convert seconds to hours if needed
+                        idle_hours = value / 3600 if value > 1000 else value
+                        logger.debug(f"Found idle time from {field}: {idle_hours:.2f} hours")
+                        return idle_hours
+
+            # Method 4: Check activity charts for idle indicators
+            if 'actChart' in employee_data and isinstance(employee_data['actChart'], dict):
+                chart_idle = 0
+                for key, value in employee_data['actChart'].items():
+                    key_lower = key.lower()
+                    if any(indicator in key_lower for indicator in ['idle', 'inactive', 'break', 'away']):
+                        if isinstance(value, (int, float)) and value > 0:
+                            chart_idle += value / 3600 if value > 1000 else value
+
+                if chart_idle > 0:
+                    logger.debug(f"Found idle time from actChart: {chart_idle:.2f} hours")
+                    return chart_idle
+
+            logger.debug("No idle time data found - assuming 0 idle hours")
+            return 0
+
+        except Exception as e:
+            logger.error(f"Error extracting idle hours: {str(e)}")
+            return 0
+
     def _count_working_days(self, start_date: datetime, end_date: datetime) -> int:
         """
         Count actual working days (Monday-Friday) in the given period
