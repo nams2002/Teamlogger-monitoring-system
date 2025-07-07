@@ -31,6 +31,9 @@ Thumbs.db
 # Secrets
 secrets.toml
 .streamlit/secrets.toml
+streamlit_secrets.toml
+.env.template
+config.ini
 
 # Data files
 *.csv
@@ -44,8 +47,17 @@ secrets.toml
 # Test files
 test_*.py
 *_test.py
+demo_*.py
+*_demo.py
 
 # Debug files
 debug_*.py
 check_*.py
 personal_test.py
+test_idle_time_implementation.py
+
+# Virtual environments
+myenv/
+venv/
+env/
+.venv/

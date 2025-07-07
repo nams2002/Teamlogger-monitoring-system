@@ -54,11 +54,11 @@
                             
                             <!-- Main Message -->
                             <p style="font-size: 16px; color: #333333; margin: 0 0 20px 0; line-height: 1.6;">
-                                This email is a reminder that, as per company policy, it is mandatory to complete 40 working hours per week, which equates to 8 hours per day. 
+                                This email is a reminder that, as per company policy, it is mandatory to complete 40 working hours per week, which equates to 8 hours per day.
                                 {% if leave_days > 0 %}
-                                We have considered your {{ leave_days }}-day leave. 
+                                We have considered your {{ leave_days }}-day leave.
                                 {% endif %}
-                                Currently, you have accrued <strong>{{ total_hours }} hours</strong>. This policy is in place to ensure that we maintain a high level of productivity and meet our company goals and deliverables.
+                                Currently, you have logged <strong>{{ original_total_hours }} hours</strong> total, with <strong>{{ total_hours }} active working hours</strong> ({{ idle_hours }} hours of idle time excluded). This policy is in place to ensure that we maintain a high level of productivity and meet our company goals and deliverables.
                             </p>
                             
                             <!-- Alert Message -->
@@ -66,13 +66,22 @@
                                 It has come to our attention that you did not meet the required working hours from <strong>{{ week_start }}</strong> to <strong>{{ week_end }}</strong>. Please help us understand why you did not complete the expected working hours. We understand that you might have some personal circumstances affecting your working hours. Feel free to discuss them with us. Please provide us with the reason by EOD today, <strong>{{ current_date_formatted }}</strong>, so we can discuss the same further.
                             </p>
                             
-                            <!-- Summary Table (Optional - can be removed if you want plain text only) -->
-                            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 30px 0; display: none;">
+                            <!-- Summary Table with Idle Time Breakdown -->
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 30px 0;">
                                 <tr>
                                     <td style="background-color: #f8f9fa; padding: 20px; border-radius: 8px;">
+                                        <h3 style="color: #333333; font-size: 16px; margin: 0 0 15px 0;">Work Hours Summary</h3>
                                         <table border="0" cellpadding="0" cellspacing="0" width="100%">
                                             <tr>
-                                                <td style="padding: 8px 0; color: #666666; font-size: 14px;">Hours Worked:</td>
+                                                <td style="padding: 8px 0; color: #666666; font-size: 14px;">Total Logged Hours:</td>
+                                                <td align="right" style="padding: 8px 0; color: #666666; font-size: 14px; font-weight: 600;">{{ original_total_hours }} hours</td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 0; color: #666666; font-size: 14px;">Idle Time (excluded):</td>
+                                                <td align="right" style="padding: 8px 0; color: #f39c12; font-size: 14px; font-weight: 600;">{{ idle_hours }} hours</td>
+                                            </tr>
+                                            <tr style="border-top: 1px solid #ddd;">
+                                                <td style="padding: 8px 0; color: #333333; font-size: 14px; font-weight: 600;">Active Working Hours:</td>
                                                 <td align="right" style="padding: 8px 0; color: #333333; font-size: 14px; font-weight: 600;">{{ total_hours }} hours</td>
                                             </tr>
                                             <tr>
