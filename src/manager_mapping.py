@@ -48,9 +48,9 @@ class DynamicManagerMapping:
                 next(reader, None)  # Skip header row
 
                 for row in reader:
-                    if len(row) >= 2 and row[0].strip() and row[1].strip():
+                    if len(row) >= 3 and row[0].strip() and row[2].strip():
                         employee_name = row[0].strip()
-                        manager_name = row[1].strip()
+                        manager_name = row[2].strip()  # Column C (Manager Name), not Column B (Employee Email)
                         mapping[employee_name] = manager_name
 
                         # Also capture manager email if available (column D)
