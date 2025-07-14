@@ -44,16 +44,30 @@ class DynamicManagerMapping:
                 reader = csv.reader(csv_data)
 
                 mapping = {}
-                header_row = next(reader, None)  # Skip header
+                manager_emails = {}
+                next(reader, None)  # Skip header row
 
                 for row in reader:
                     if len(row) >= 2 and row[0].strip() and row[1].strip():
                         employee_name = row[0].strip()
                         manager_name = row[1].strip()
                         mapping[employee_name] = manager_name
+
+                        # Also capture manager email if available (column D)
+                        if len(row) >= 4 and row[3].strip():
+                            manager_email = row[3].strip()
+                            if '@' in manager_email:  # Basic email validation
+                                manager_emails[manager_name] = manager_email
+                                logger.debug(f"Manager email: {manager_name} -> {manager_email}")
+
                         logger.debug(f"Mapped: {employee_name} -> {manager_name}")
 
+                # Update global manager emails with fresh data
+                global MANAGER_EMAILS
+                MANAGER_EMAILS.update(manager_emails)
+
                 logger.info(f"Successfully loaded {len(mapping)} manager mappings from Google Sheets")
+                logger.info(f"Updated {len(manager_emails)} manager email addresses")
                 return mapping
             else:
                 logger.error(f"Failed to fetch manager mapping: HTTP {response.status_code}")
