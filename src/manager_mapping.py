@@ -194,7 +194,7 @@ MANAGER_EMAILS: Dict[str, str] = {
     'Aditya Bisht': 'ab@rapidinnovation.dev',
     'Hitesh Goyal': 'Hitesh@rapidinnovation.dev',
     'Jesse Anglen': 'Jesse@rapidinnovation.io',
-    'Neeraj Deshpande': 'neerajdeshpande@rapidinnovation.dev',
+    # 'Neeraj Deshpande': 'neerajdeshpande@rapidinnovation.dev',  # REMOVED - Left organization
     'Prasanjit Dey': 'pd@rapidinnovation.io',
     'Rajnikant Sonvane': 'rajnikantsonvane@rapidinnovation.dev',
     'Shailesh Kala': 'sk@rapidinnovation.dev',

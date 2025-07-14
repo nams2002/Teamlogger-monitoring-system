@@ -293,14 +293,32 @@ class WorkflowManager:
             return 0.0
 
     def _filter_active_employees(self, employees: List[Dict], start_date: datetime, end_date: datetime) -> List[Dict]:
-        """Filter employees to only include those who are currently in Google Sheets (active employees)"""
+        """Filter employees to only include those who are currently in Google Sheets (active employees)
+
+        Known inactive employees (left organization):
+        - Priya Bhadauria, aishik chatterjee, Ashique Mohammed C, Aayush Limbbad
+        - Kajol Jaiswal, Tirtharaj Bhowmik, Neeraj Deshpande, Arsh Sohal
+        """
         active_employees = []
+
+        # Known inactive employees who have left the organization
+        KNOWN_INACTIVE_EMPLOYEES = {
+            'priya bhadauria', 'aishik chatterjee', 'ashique mohammed c', 'aayush limbbad',
+            'kajol jaiswal', 'tirtharaj bhowmik', 'neeraj deshpande', 'arsh sohal',
+            'aayush limbad'  # Alternative spelling
+        }
 
         logger.info(f"Filtering {len(employees)} employees to find active ones in Google Sheets...")
 
         for employee in employees:
             employee_name = employee.get('name', '')
             if not employee_name:
+                continue
+
+            # Quick check against known inactive employees
+            employee_name_lower = employee_name.strip().lower()
+            if employee_name_lower in KNOWN_INACTIVE_EMPLOYEES:
+                logger.info(f"❌ {employee_name} - Known inactive employee (left organization)")
                 continue
 
             try:
@@ -314,11 +332,15 @@ class WorkflowManager:
 
                 employee_found_in_sheet = False
                 if sheet_data:
-                    employee_name_lower = employee_name.strip().lower()
                     for row in sheet_data:
                         if row and len(row) > 0:
                             cell_name = str(row[0]).strip().lower()
-                            if employee_name_lower == cell_name or employee_name_lower in cell_name:
+                            # Multiple matching strategies
+                            if (employee_name_lower == cell_name or
+                                employee_name_lower in cell_name or
+                                cell_name in employee_name_lower or
+                                # Check if main parts of names match
+                                any(part in cell_name for part in employee_name_lower.split() if len(part) > 2)):
                                 employee_found_in_sheet = True
                                 break
 
@@ -330,8 +352,8 @@ class WorkflowManager:
 
             except Exception as e:
                 logger.warning(f"Error checking {employee_name} in Google Sheets: {str(e)}")
-                # If there's an error, include the employee to be safe
-                active_employees.append(employee)
+                # If there's an error, exclude the employee to be safe (don't include potentially inactive employees)
+                logger.info(f"❌ {employee_name} - Excluded due to error (safer to exclude)")
 
         logger.info(f"Filtered to {len(active_employees)} active employees (removed {len(employees) - len(active_employees)} who left)")
         return active_employees
