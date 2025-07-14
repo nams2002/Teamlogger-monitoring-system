@@ -85,9 +85,12 @@ class WorkflowManager:
         logger.info(f"Monitoring period: {work_week_start.strftime('%Y-%m-%d')} to {work_week_end.strftime('%Y-%m-%d')}")
         
         # Get all employees in batch (faster)
-        employees = self.teamlogger.get_all_employees()
+        all_employees = self.teamlogger.get_all_employees()
+
+        # Filter to only include employees who are currently in Google Sheets (active employees)
+        employees = self._filter_active_employees(all_employees, work_week_start, work_week_end)
         total_employees = len(employees)
-        logger.info(f"Found {total_employees} active employees")
+        logger.info(f"Found {len(all_employees)} total employees, {total_employees} active employees in Google Sheets")
         
         if not employees:
             logger.error("No employees found. Workflow cannot proceed.")
@@ -288,14 +291,61 @@ class WorkflowManager:
         except Exception as e:
             logger.error(f"Error calculating working day leaves for {employee_name}: {str(e)}")
             return 0.0
-    
+
+    def _filter_active_employees(self, employees: List[Dict], start_date: datetime, end_date: datetime) -> List[Dict]:
+        """Filter employees to only include those who are currently in Google Sheets (active employees)"""
+        active_employees = []
+
+        logger.info(f"Filtering {len(employees)} employees to find active ones in Google Sheets...")
+
+        for employee in employees:
+            employee_name = employee.get('name', '')
+            if not employee_name:
+                continue
+
+            try:
+                # Try to get leave data for this employee from Google Sheets
+                # If the employee is not in the sheet, this will return empty or fail
+                leaves = self.google_sheets.get_employee_leaves(employee_name, start_date, end_date, force_refresh=True)
+
+                # Check if we can find this employee in the current month's sheet
+                current_month_sheet = datetime.now().strftime("%B %y")
+                sheet_data = self.google_sheets._fetch_sheet_data(current_month_sheet, force_refresh=True)
+
+                employee_found_in_sheet = False
+                if sheet_data:
+                    employee_name_lower = employee_name.strip().lower()
+                    for row in sheet_data:
+                        if row and len(row) > 0:
+                            cell_name = str(row[0]).strip().lower()
+                            if employee_name_lower == cell_name or employee_name_lower in cell_name:
+                                employee_found_in_sheet = True
+                                break
+
+                if employee_found_in_sheet:
+                    active_employees.append(employee)
+                    logger.debug(f"✅ {employee_name} - Found in Google Sheets (active)")
+                else:
+                    logger.info(f"❌ {employee_name} - Not found in Google Sheets (likely left organization)")
+
+            except Exception as e:
+                logger.warning(f"Error checking {employee_name} in Google Sheets: {str(e)}")
+                # If there's an error, include the employee to be safe
+                active_employees.append(employee)
+
+        logger.info(f"Filtered to {len(active_employees)} active employees (removed {len(employees) - len(active_employees)} who left)")
+        return active_employees
+
     def get_employees_needing_real_alerts(self) -> List[Dict]:
         """Get list of employees who would receive alerts - ACCURATE VERSION"""
         work_week_start, work_week_end = self._get_monitoring_period()
         employees = self.teamlogger.get_all_employees()
+
+        # Filter out employees who are no longer in Google Sheets (left the organization)
+        active_employees = self._filter_active_employees(employees, work_week_start, work_week_end)
         employees_needing_alerts = []
-        
-        for employee in employees:
+
+        for employee in active_employees:
             try:
                 employee_name = employee.get('name', '')
                 
@@ -354,7 +404,10 @@ class WorkflowManager:
         """Get comprehensive statistics for the work week"""
         try:
             work_week_start, work_week_end = self._get_monitoring_period()
-            employees = self.teamlogger.get_all_employees()
+            all_employees = self.teamlogger.get_all_employees()
+
+            # Filter to only include active employees (those in Google Sheets)
+            employees = self._filter_active_employees(all_employees, work_week_start, work_week_end)
             
             stats = {
                 'period': {

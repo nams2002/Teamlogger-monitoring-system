@@ -1,15 +1,98 @@
 """
-Manager Mapping Module - Updated and Synchronized with Google Sheets
+Manager Mapping Module - Dynamic Google Sheets Integration
 Maps employees to their reporting managers for CC in email alerts
+Now reads from Google Sheets in real-time to ensure accuracy
 """
 
 import logging
+import requests
+import csv
+from io import StringIO
 from typing import Dict, List, Optional
+from config.settings import Config
 
 logger = logging.getLogger(__name__)
 
-# Employee to Reporting Manager mapping - Updated from Google Sheets
-REPORTING_MANAGERS: Dict[str, str] = {
+class DynamicManagerMapping:
+    """Dynamic manager mapping that reads from Google Sheets in real-time"""
+
+    def __init__(self):
+        # Manager mapping Google Sheet URL
+        self.manager_sheet_url = "https://docs.google.com/spreadsheets/d/1hqj2whB7bH0aoDeNV-ORIl_5dXX0eHcglhabW9xeVt8/edit?usp=sharing"
+        self.spreadsheet_id = "1hqj2whB7bH0aoDeNV-ORIl_5dXX0eHcglhabW9xeVt8"
+        self._cached_mapping = {}
+        self._cache_timestamp = None
+
+    def _fetch_manager_mapping_from_sheets(self) -> Dict[str, str]:
+        """Fetch the latest manager mapping from Google Sheets"""
+        try:
+            # Convert Google Sheets URL to CSV export URL
+            csv_url = f"https://docs.google.com/spreadsheets/d/{self.spreadsheet_id}/export?format=csv"
+
+            headers = {
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache',
+                'Expires': '0'
+            }
+
+            logger.info("Fetching manager mapping from Google Sheets...")
+            response = requests.get(csv_url, timeout=30, headers=headers)
+
+            if response.status_code == 200:
+                content = response.text
+                csv_data = StringIO(content)
+                reader = csv.reader(csv_data)
+
+                mapping = {}
+                header_row = next(reader, None)  # Skip header
+
+                for row in reader:
+                    if len(row) >= 2 and row[0].strip() and row[1].strip():
+                        employee_name = row[0].strip()
+                        manager_name = row[1].strip()
+                        mapping[employee_name] = manager_name
+                        logger.debug(f"Mapped: {employee_name} -> {manager_name}")
+
+                logger.info(f"Successfully loaded {len(mapping)} manager mappings from Google Sheets")
+                return mapping
+            else:
+                logger.error(f"Failed to fetch manager mapping: HTTP {response.status_code}")
+                return {}
+
+        except Exception as e:
+            logger.error(f"Error fetching manager mapping from Google Sheets: {str(e)}")
+            return {}
+
+    def get_current_mapping(self, force_refresh: bool = False) -> Dict[str, str]:
+        """Get current manager mapping with optional caching"""
+        from datetime import datetime, timedelta
+
+        # Check if we need to refresh (force refresh or cache is old)
+        now = datetime.now()
+        cache_expired = (self._cache_timestamp is None or
+                        now - self._cache_timestamp > timedelta(minutes=5))
+
+        if force_refresh or cache_expired or not self._cached_mapping:
+            fresh_mapping = self._fetch_manager_mapping_from_sheets()
+            if fresh_mapping:  # Only update cache if we got data
+                self._cached_mapping = fresh_mapping
+                self._cache_timestamp = now
+                logger.info("Manager mapping cache updated")
+            elif not self._cached_mapping:  # Fallback to static mapping if no cache and fetch failed
+                logger.warning("Using fallback static manager mapping")
+                self._cached_mapping = self._get_fallback_mapping()
+
+        return self._cached_mapping
+
+    def _get_fallback_mapping(self) -> Dict[str, str]:
+        """Fallback to static mapping if Google Sheets is unavailable"""
+        return STATIC_REPORTING_MANAGERS
+
+# Create global instance
+_manager_mapping_instance = DynamicManagerMapping()
+
+# Static fallback mapping (your current mapping as backup)
+STATIC_REPORTING_MANAGERS: Dict[str, str] = {
     # Employee Name: Reporting Manager
     'Aakash Kumar': 'Abhijeet Sonaje',
     'Aayush Limbad': 'Neeraj Deshpande',
@@ -165,13 +248,16 @@ def normalize_name(name: str) -> str:
     if not name:
         return ""
     
+    # Get current mapping from Google Sheets
+    reporting_managers = _manager_mapping_instance.get_current_mapping()
+
     # Try exact match first
-    if name in REPORTING_MANAGERS:
+    if name in reporting_managers:
         return name
-    
+
     # Try case-insensitive match
     name_lower = name.lower()
-    for mapped_name in REPORTING_MANAGERS:
+    for mapped_name in reporting_managers:
         if mapped_name.lower() == name_lower:
             return mapped_name
     
@@ -182,43 +268,46 @@ def normalize_name(name: str) -> str:
     # Try partial match (first name + last name)
     name_parts = name.split()
     if len(name_parts) >= 2:
-        for mapped_name in REPORTING_MANAGERS:
+        for mapped_name in reporting_managers:
             mapped_parts = mapped_name.split()
             if len(mapped_parts) >= 2:
-                if (name_parts[0].lower() == mapped_parts[0].lower() and 
+                if (name_parts[0].lower() == mapped_parts[0].lower() and
                     name_parts[-1].lower() == mapped_parts[-1].lower()):
                     return mapped_name
-    
+
     # Try just first name match
     if len(name_parts) >= 1:
         first_name = name_parts[0].lower()
-        for mapped_name in REPORTING_MANAGERS:
+        for mapped_name in reporting_managers:
             if mapped_name.lower().startswith(first_name):
                 return mapped_name
     
     return name
 
 
-def get_manager_name(employee_name: str) -> Optional[str]:
+def get_manager_name(employee_name: str, force_refresh: bool = False) -> Optional[str]:
     """
-    Get the reporting manager's name for an employee
-    
+    Get the reporting manager's name for an employee from Google Sheets
+
     Args:
         employee_name: Name of the employee
-        
+        force_refresh: Whether to force refresh from Google Sheets
+
     Returns:
         Manager's name or None if not found
     """
+    reporting_managers = _manager_mapping_instance.get_current_mapping(force_refresh=force_refresh)
     normalized_name = normalize_name(employee_name)
-    manager = REPORTING_MANAGERS.get(normalized_name)
-    
+    manager = reporting_managers.get(normalized_name)
+
     if not manager:
         logger.warning(f"No manager found for employee: {employee_name} (normalized: {normalized_name})")
-    
+        logger.debug(f"Available employees in mapping: {list(reporting_managers.keys())[:10]}...")
+
     return manager
 
 
-def get_manager_email(employee_name: str) -> Optional[str]:
+def get_manager_email(employee_name: str, force_refresh: bool = False) -> Optional[str]:
     """
     Get the reporting manager's email for an employee
     
@@ -228,7 +317,7 @@ def get_manager_email(employee_name: str) -> Optional[str]:
     Returns:
         Manager's email address or None if not found
     """
-    manager_name = get_manager_name(employee_name)
+    manager_name = get_manager_name(employee_name, force_refresh=force_refresh)
     
     if not manager_name:
         return None
@@ -289,7 +378,8 @@ def get_employees_by_manager(manager_name: str) -> List[str]:
         if mapped_manager.lower() == manager_name.lower():
             manager_variations.append(mapped_manager)
     
-    for employee, manager in REPORTING_MANAGERS.items():
+    reporting_managers = _manager_mapping_instance.get_current_mapping()
+    for employee, manager in reporting_managers.items():
         if manager in manager_variations:
             employees.append(employee)
     
@@ -306,8 +396,9 @@ def get_manager_summary() -> Dict[str, Dict]:
     summary = {}
     
     # Get unique managers
+    reporting_managers = _manager_mapping_instance.get_current_mapping()
     unique_managers = set()
-    for manager in REPORTING_MANAGERS.values():
+    for manager in reporting_managers.values():
         if manager:  # Skip empty managers
             unique_managers.add(manager)
     
@@ -347,11 +438,12 @@ def validate_mapping() -> Dict[str, List[str]]:
     }
     
     # Check for managers without emails
+    reporting_managers = _manager_mapping_instance.get_current_mapping()
     all_managers = set()
-    for manager in REPORTING_MANAGERS.values():
+    for manager in reporting_managers.values():
         if manager:
             all_managers.add(manager)
-    
+
     for manager in all_managers:
         found_email = False
         # Check exact match and case-insensitive match
@@ -361,15 +453,15 @@ def validate_mapping() -> Dict[str, List[str]]:
                 break
         if not found_email:
             issues['managers_without_emails'].append(manager)
-    
+
     # Check for employees without managers
-    for employee, manager in REPORTING_MANAGERS.items():
+    for employee, manager in reporting_managers.items():
         if not manager:
             issues['employees_without_managers'].append(employee)
-    
+
     # Check for duplicate employee entries
     employee_counts = {}
-    for employee in REPORTING_MANAGERS:
+    for employee in reporting_managers:
         employee_lower = employee.lower()
         if employee_lower in employee_counts:
             issues['duplicate_employees'].append(employee)
@@ -398,20 +490,30 @@ def print_manager_report():
     
     print("\n" + "="*60)
     print(f"Total Managers: {len(summary)}")
-    print(f"Total Employees: {len(REPORTING_MANAGERS)}")
+    reporting_managers = _manager_mapping_instance.get_current_mapping()
+    print(f"Total Employees: {len(reporting_managers)}")
     print("="*60)
 
 
 def get_mapping_stats():
     """Get mapping statistics"""
-    unique_managers = set(REPORTING_MANAGERS.values())
+    reporting_managers = _manager_mapping_instance.get_current_mapping()
+    unique_managers = set(reporting_managers.values())
     return {
-        'total_employees': len(REPORTING_MANAGERS),
+        'total_employees': len(reporting_managers),
         'unique_managers': len(unique_managers),
         'managers_with_emails': len(MANAGER_EMAILS),
-        'largest_team': max([list(REPORTING_MANAGERS.values()).count(manager) 
+        'largest_team': max([list(reporting_managers.values()).count(manager)
                            for manager in unique_managers] or [0])
     }
+
+
+def refresh_manager_mapping():
+    """Force refresh manager mapping from Google Sheets"""
+    logger.info("Force refreshing manager mapping from Google Sheets...")
+    mapping = _manager_mapping_instance.get_current_mapping(force_refresh=True)
+    logger.info(f"Refreshed manager mapping with {len(mapping)} employees")
+    return mapping
 
 
 # For testing the module independently

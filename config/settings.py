@@ -33,7 +33,7 @@ class Config:
     
     # Google Sheets Configuration - FORCE REAL-TIME
     GOOGLE_SHEETS_ID = get_env_var('GOOGLE_SHEETS_ID', '1RJt6TXG_x5EmTWX6YNyC9qiCCEVsmb4lBjTUe2Ua8Yk')
-    GOOGLE_SHEETS_URL = get_env_var('GOOGLE_SHEETS_URL', 'https://docs.google.com/spreadsheets/d/1RJt6TXG_x5EmTWX6YNyC9qiCCEVsmb4lBjTUe2Ua8Yk/edit?gid=1013361163#gid=1013361163')
+    GOOGLE_SHEETS_URL = get_env_var('GOOGLE_SHEETS_URL', 'https://docs.google.com/spreadsheets/d/1RJt6TXG_x5EmTWX6YNyC9qiCCEVsmb4lBjTUe2Ua8Yk/edit?usp=sharing')
     GOOGLE_SHEETS_PUBLISHED_CSV_URL = get_env_var("GOOGLE_SHEETS_PUBLISHED_CSV_URL")
     
     # Email Configuration

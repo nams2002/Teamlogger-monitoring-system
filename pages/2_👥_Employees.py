@@ -32,12 +32,13 @@ def get_all_employees_data():
     try:
         teamlogger = TeamLoggerClient()
         workflow = st.session_state.workflow_manager
-        
-        # Get all employees
-        employees = teamlogger.get_all_employees()
-        
-        # Get current week boundaries
+
+        # Get current week boundaries first
         work_week_start, work_week_end = workflow._get_monitoring_period()
+
+        # Get all employees and filter to only active ones (those in Google Sheets)
+        all_employees = teamlogger.get_all_employees()
+        employees = workflow._filter_active_employees(all_employees, work_week_start, work_week_end)
         
         # Enrich with weekly data and UNIFIED status determination
         employee_data = []
