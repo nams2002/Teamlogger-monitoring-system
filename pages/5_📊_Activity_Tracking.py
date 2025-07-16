@@ -61,6 +61,166 @@ def get_workflow_manager():
 
 workflow = get_workflow_manager()
 
+# Function definitions for activity monitoring
+def preview_activity_alerts():
+    """Preview activity alerts functionality"""
+    if not workflow:
+        st.error("❌ Workflow manager not available")
+        return
+
+    st.subheader("🔍 Activity Alerts Preview")
+
+    with st.spinner("🔍 Analyzing employee activity levels..."):
+        employees_needing_alerts = workflow.get_employees_needing_activity_alerts()
+
+    if not employees_needing_alerts:
+        st.success("✅ No employees need activity alerts for the previous work week!")
+        st.info("All employees met the minimum activity threshold (50%)")
+    else:
+        st.warning(f"⚠️ {len(employees_needing_alerts)} employees would receive activity alerts")
+
+        # Create tabs
+        tab1, tab2, tab3 = st.tabs(["📋 Employee List", "📊 Analysis", "📧 Email Preview"])
+
+        with tab1:
+            # Convert to DataFrame
+            activity_data = []
+            for emp in employees_needing_alerts:
+                activity_data.append({
+                    'Name': emp['name'],
+                    'Activity %': f"{emp['activity_percentage']:.1f}%",
+                    'Threshold': f"{emp['activity_threshold']:.0f}%",
+                    'Shortfall': f"{emp['activity_shortfall']:.1f}%",
+                    'Hours Worked': f"{emp['hours_worked']:.1f}h",
+                    'Leave Days': emp['leave_days'],
+                    'Trend': emp['activity_trend'],
+                    'Manager': emp['manager_name']
+                })
+
+            df = pd.DataFrame(activity_data)
+            st.dataframe(df, use_container_width=True, hide_index=True)
+
+            # Download button
+            if len(df) > 0:
+                csv = df.to_csv(index=False)
+                st.download_button(
+                    label="📥 Download Activity Alert List (CSV)",
+                    data=csv,
+                    file_name=f"activity_alerts_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                    mime="text/csv",
+                    key="activity_preview_download"
+                )
+
+        with tab2:
+            # Activity analysis
+            if len(employees_needing_alerts) > 0:
+                activity_percentages = [emp['activity_percentage'] for emp in employees_needing_alerts]
+
+                # Activity distribution chart
+                fig = px.histogram(
+                    x=activity_percentages,
+                    nbins=10,
+                    title='Activity Percentage Distribution (Below 50% Threshold)',
+                    labels={'x': 'Activity Percentage', 'y': 'Count'}
+                )
+                fig.add_vline(x=50, line_dash="dash", line_color="red", annotation_text="Threshold (50%)")
+                st.plotly_chart(fig, use_container_width=True)
+
+                # Summary statistics
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Avg Activity", f"{sum(activity_percentages)/len(activity_percentages):.1f}%")
+                with col2:
+                    st.metric("Lowest Activity", f"{min(activity_percentages):.1f}%")
+                with col3:
+                    st.metric("Employees Below 30%", len([x for x in activity_percentages if x < 30]))
+
+        with tab3:
+            # Email preview
+            if len(employees_needing_alerts) > 0:
+                sample = employees_needing_alerts[0]
+
+                st.markdown(f"""
+                **To:** {sample['email']}
+                **CC:** {sample['manager_email']}, teamhr@rapidinnovation.dev
+                **Subject:** Activity Level Reminder - {sample['name']}
+
+                ---
+
+                Dear {sample['name']},
+
+                This is a notification regarding your activity levels for the previous work week.
+
+                **Activity Summary:**
+                - Your Activity Level: **{sample['activity_percentage']:.1f}%**
+                - Required Threshold: **{sample['activity_threshold']:.0f}%**
+                - Activity Shortfall: **{sample['activity_shortfall']:.1f}%**
+                - Hours Worked: {sample['hours_worked']:.1f}h
+                - Activity Trend: {sample['activity_trend']}
+
+                Your activity level was below our minimum threshold. Please review your work patterns and consider the recommendations in the full email.
+
+                Best regards,
+                HR Team
+                """)
+
+def run_activity_monitoring():
+    """Run the activity monitoring workflow"""
+    if not workflow:
+        st.error("❌ Workflow manager not available")
+        return None
+
+    with st.spinner("🔄 Running activity monitoring workflow..."):
+        try:
+            results = workflow.run_activity_monitoring_workflow()
+            return results
+        except Exception as e:
+            st.error(f"❌ Activity monitoring failed: {str(e)}")
+            return None
+
+def display_activity_monitoring_results(results):
+    """Display activity monitoring results"""
+    st.success("✅ Activity monitoring completed!")
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Employees Checked", results.get('total_employees_checked', 0))
+    with col2:
+        st.metric("Activity Alerts Sent", results.get('activity_alerts_sent', 0))
+    with col3:
+        st.metric("Errors", results.get('activity_errors', 0))
+
+    st.info(f"⏱️ Execution time: {results.get('execution_time', 'Unknown')}")
+
+def show_activity_statistics():
+    """Show activity statistics"""
+    if not workflow:
+        st.error("❌ Workflow manager not available")
+        return
+
+    st.subheader("📊 Activity Statistics")
+
+    with st.spinner("📊 Generating activity statistics..."):
+        employees_needing_alerts = workflow.get_employees_needing_activity_alerts()
+
+        # Get all employees for comparison
+        all_employees = workflow.teamlogger.get_all_employees()
+        work_week_start, work_week_end = workflow._get_monitoring_period()
+        active_employees = workflow._filter_active_employees(all_employees, work_week_start, work_week_end)
+
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+            st.metric("Total Active Employees", len(active_employees))
+        with col2:
+            st.metric("Need Activity Alerts", len(employees_needing_alerts))
+        with col3:
+            alert_rate = (len(employees_needing_alerts) / len(active_employees) * 100) if active_employees else 0
+            st.metric("Alert Rate", f"{alert_rate:.1f}%")
+        with col4:
+            good_activity = len(active_employees) - len(employees_needing_alerts)
+            st.metric("Good Activity (≥50%)", good_activity)
+
 # Sidebar controls
 st.sidebar.header("📅 Analysis Period")
 
@@ -436,6 +596,8 @@ else:
     - **Activity Trend**: Direction of change (Improving/Declining/Stable)
     """)
 
+
+
 # Activity Monitoring & Alerts Section
 st.markdown("---")
 st.header("🚨 Activity Monitoring & Alerts")
@@ -474,152 +636,6 @@ if workflow:
         if st.button("📊 Activity Statistics", use_container_width=True,
                     help="View activity statistics"):
             show_activity_statistics()
-
-def preview_activity_alerts():
-    """Preview activity alerts functionality"""
-    st.subheader("🔍 Activity Alerts Preview")
-
-    with st.spinner("🔍 Analyzing employee activity levels..."):
-        employees_needing_alerts = workflow.get_employees_needing_activity_alerts()
-
-    if not employees_needing_alerts:
-        st.success("✅ No employees need activity alerts for the previous work week!")
-        st.info("All employees met the minimum activity threshold (50%)")
-    else:
-        st.warning(f"⚠️ {len(employees_needing_alerts)} employees would receive activity alerts")
-
-        # Create tabs
-        tab1, tab2, tab3 = st.tabs(["📋 Employee List", "📊 Analysis", "📧 Email Preview"])
-
-        with tab1:
-            # Convert to DataFrame
-            activity_data = []
-            for emp in employees_needing_alerts:
-                activity_data.append({
-                    'Name': emp['name'],
-                    'Activity %': f"{emp['activity_percentage']:.1f}%",
-                    'Threshold': f"{emp['activity_threshold']:.0f}%",
-                    'Shortfall': f"{emp['activity_shortfall']:.1f}%",
-                    'Hours Worked': f"{emp['hours_worked']:.1f}h",
-                    'Leave Days': emp['leave_days'],
-                    'Trend': emp['activity_trend'],
-                    'Manager': emp['manager_name']
-                })
-
-            df = pd.DataFrame(activity_data)
-            st.dataframe(df, use_container_width=True, hide_index=True)
-
-            # Download button
-            if len(df) > 0:
-                csv = df.to_csv(index=False)
-                st.download_button(
-                    label="📥 Download Activity Alert List (CSV)",
-                    data=csv,
-                    file_name=f"activity_alerts_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                    mime="text/csv"
-                )
-
-        with tab2:
-            # Activity analysis
-            if len(employees_needing_alerts) > 0:
-                activity_percentages = [emp['activity_percentage'] for emp in employees_needing_alerts]
-
-                # Activity distribution chart
-                fig = px.histogram(
-                    x=activity_percentages,
-                    nbins=10,
-                    title='Activity Percentage Distribution (Below 50% Threshold)',
-                    labels={'x': 'Activity Percentage', 'y': 'Count'}
-                )
-                fig.add_vline(x=50, line_dash="dash", line_color="red", annotation_text="Threshold (50%)")
-                st.plotly_chart(fig, use_container_width=True)
-
-                # Summary statistics
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("Avg Activity", f"{sum(activity_percentages)/len(activity_percentages):.1f}%")
-                with col2:
-                    st.metric("Lowest Activity", f"{min(activity_percentages):.1f}%")
-                with col3:
-                    st.metric("Employees Below 30%", len([x for x in activity_percentages if x < 30]))
-
-        with tab3:
-            # Email preview
-            if len(employees_needing_alerts) > 0:
-                sample = employees_needing_alerts[0]
-
-                st.markdown(f"""
-                **To:** {sample['email']}
-                **CC:** {sample['manager_email']}, teamhr@rapidinnovation.dev
-                **Subject:** Activity Level Reminder - {sample['name']}
-
-                ---
-
-                Dear {sample['name']},
-
-                This is a notification regarding your activity levels for the previous work week.
-
-                **Activity Summary:**
-                - Your Activity Level: **{sample['activity_percentage']:.1f}%**
-                - Required Threshold: **{sample['activity_threshold']:.0f}%**
-                - Activity Shortfall: **{sample['activity_shortfall']:.1f}%**
-                - Hours Worked: {sample['hours_worked']:.1f}h
-                - Activity Trend: {sample['activity_trend']}
-
-                Your activity level was below our minimum threshold. Please review your work patterns and consider the recommendations in the full email.
-
-                Best regards,
-                HR Team
-                """)
-
-def run_activity_monitoring():
-    """Run the activity monitoring workflow"""
-    with st.spinner("🔄 Running activity monitoring workflow..."):
-        try:
-            results = workflow.run_activity_monitoring_workflow()
-            return results
-        except Exception as e:
-            st.error(f"❌ Activity monitoring failed: {str(e)}")
-            return None
-
-def display_activity_monitoring_results(results):
-    """Display activity monitoring results"""
-    st.success("✅ Activity monitoring completed!")
-
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Employees Checked", results.get('total_employees_checked', 0))
-    with col2:
-        st.metric("Activity Alerts Sent", results.get('activity_alerts_sent', 0))
-    with col3:
-        st.metric("Errors", results.get('activity_errors', 0))
-
-    st.info(f"⏱️ Execution time: {results.get('execution_time', 'Unknown')}")
-
-def show_activity_statistics():
-    """Show activity statistics"""
-    st.subheader("📊 Activity Statistics")
-
-    with st.spinner("📊 Generating activity statistics..."):
-        employees_needing_alerts = workflow.get_employees_needing_activity_alerts()
-
-        # Get all employees for comparison
-        all_employees = workflow.teamlogger.get_all_employees()
-        work_week_start, work_week_end = workflow._get_monitoring_period()
-        active_employees = workflow._filter_active_employees(all_employees, work_week_start, work_week_end)
-
-        col1, col2, col3, col4 = st.columns(4)
-
-        with col1:
-            st.metric("Total Active Employees", len(active_employees))
-        with col2:
-            st.metric("Need Activity Alerts", len(employees_needing_alerts))
-        with col3:
-            alert_rate = (len(employees_needing_alerts) / len(active_employees) * 100) if active_employees else 0
-            st.metric("Alert Rate", f"{alert_rate:.1f}%")
-        with col4:
-            good_activity = len(active_employees) - len(employees_needing_alerts)
-            st.metric("Good Activity (≥50%)", good_activity)
 
 else:
     st.error("❌ Workflow manager not available. Activity monitoring disabled.")
