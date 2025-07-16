@@ -163,19 +163,21 @@ def preview_mode():
             # Add filters
             col1, col2, col3 = st.columns(3)
             with col1:
-                manager_filter = st.multiselect("Filter by Manager", 
+                manager_filter = st.multiselect("Filter by Manager",
                                                options=[m for m in df['Manager'].unique() if m != 'Not Assigned'],
-                                               default=[])
+                                               default=[],
+                                               key="hours_manager_filter")
             
             with col2:
-                min_shortfall = st.slider("Min shortfall (hours)", 
-                                        min_value=0.0, 
+                min_shortfall = st.slider("Min shortfall (hours)",
+                                        min_value=0.0,
                                         max_value=20.0,
                                         value=0.0,
-                                        step=0.5)
+                                        step=0.5,
+                                        key="hours_shortfall_slider")
             
             with col3:
-                search_term = st.text_input("Search employee", "")
+                search_term = st.text_input("Search employee", "", key="hours_search")
             
             # Apply filters
             filtered_df = df.copy()
@@ -200,7 +202,8 @@ def preview_mode():
                     label="📥 Download Alert List (CSV)",
                     data=csv,
                     file_name=f"employee_alerts_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                    mime="text/csv"
+                    mime="text/csv",
+                    key="hours_download_button"
                 )
         
         with tab2:
@@ -304,7 +307,8 @@ def preview_mode():
                     manager_filter = st.multiselect(
                         "Filter by Manager",
                         options=df_activity['Manager'].unique(),
-                        default=[]
+                        default=[],
+                        key="activity_manager_filter"
                     )
 
                 with col2:
@@ -313,11 +317,12 @@ def preview_mode():
                         min_value=0.0,
                         max_value=50.0,
                         value=0.0,
-                        step=1.0
+                        step=1.0,
+                        key="activity_shortfall_slider"
                     )
 
                 with col3:
-                    search_term = st.text_input("Search employee", "")
+                    search_term = st.text_input("Search employee", "", key="activity_search")
 
                 # Apply filters
                 filtered_df = df_activity.copy()
@@ -342,7 +347,8 @@ def preview_mode():
                         label="📥 Download Activity Alert List (CSV)",
                         data=csv,
                         file_name=f"activity_alerts_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                        mime="text/csv"
+                        mime="text/csv",
+                        key="activity_download_button"
                     )
 
             with activity_tab2:
