@@ -4,6 +4,7 @@ from typing import List, Dict, Tuple, Optional
 from src.teamlogger_client import TeamLoggerClient
 from src.googlesheets_Client import GoogleSheetsLeaveClient
 from src.email_service import EmailService
+from src.activity_analysis import ActivityAnalyzer
 from config.settings import Config
 
 logger = logging.getLogger(__name__)
@@ -13,12 +14,17 @@ class WorkflowManager:
         self.teamlogger = TeamLoggerClient()
         self.google_sheets = GoogleSheetsLeaveClient()
         self.email_service = EmailService()
+        self.activity_analyzer = ActivityAnalyzer(self.teamlogger)
         
         # 5-day work system configuration
         self.min_hours = Config.MINIMUM_HOURS_PER_WEEK  # 40 hours
         self.acceptable_hours = Config.ACCEPTABLE_HOURS_PER_WEEK  # 37 hours (with 3-hour buffer)
         self.work_days = Config.WORK_DAYS_PER_WEEK  # 5 days (Monday-Friday)
         self.hours_per_day = Config.HOURS_PER_WORKING_DAY  # 8 hours per day
+
+        # Activity monitoring configuration
+        self.activity_threshold = 50.0  # Minimum activity percentage (50%)
+        self.enable_activity_alerts = False  # Disabled for now - only preview mode
         
         # FIXED: Excluded employees with case-insensitive matching
         self.excluded_employees = {
@@ -510,3 +516,110 @@ class WorkflowManager:
         except Exception as e:
             logger.error(f"Error generating work week statistics: {str(e)}")
             return {}
+
+    def get_employees_needing_activity_alerts(self) -> List[Dict]:
+        """
+        Get employees who need activity alerts based on previous week's activity levels
+
+        Returns:
+            List of employee dictionaries with activity data
+        """
+        try:
+            work_week_start, work_week_end = self._get_monitoring_period()
+            logger.info(f"Checking activity levels for period: {work_week_start.date()} to {work_week_end.date()}")
+
+            all_employees = self.teamlogger.get_all_employees()
+            # Filter to only include active employees (those in Google Sheets)
+            employees = self._filter_active_employees(all_employees, work_week_start, work_week_end)
+            employees_needing_alerts = []
+
+            for employee in employees:
+                try:
+                    employee_name = employee.get('name', 'Unknown')
+                    employee_id = employee.get('id')
+                    employee_email = employee.get('email', '')
+
+                    # Skip excluded employees
+                    if self._is_employee_excluded(employee_name):
+                        logger.debug(f"Skipping excluded employee: {employee_name}")
+                        continue
+
+                    # Get activity report for the employee
+                    activity_report = self.teamlogger.generate_employee_activity_report(
+                        employee_id, work_week_start, work_week_end
+                    )
+
+                    if not activity_report:
+                        logger.warning(f"No activity data for {employee_name}")
+                        continue
+
+                    # Check if activity is below threshold
+                    activity_percentage = activity_report.overall_average_activity
+
+                    if activity_percentage < self.activity_threshold:
+                        # Get manager information
+                        manager_name = self._get_manager_name(employee_name)
+                        manager_email = self._get_manager_email(employee_name)
+
+                        # Get leave days for context
+                        leave_days = self._get_working_day_leaves_count_realtime(
+                            employee_name, work_week_start, work_week_end
+                        )
+
+                        # Get hours worked for context
+                        weekly_data = self.teamlogger.get_weekly_summary(employee_id, work_week_start, work_week_end)
+                        hours_worked = weekly_data['total_hours'] if weekly_data else 0
+
+                        employee_alert_data = {
+                            'id': employee_id,
+                            'name': employee_name,
+                            'email': employee_email,
+                            'activity_percentage': round(activity_percentage, 2),
+                            'activity_threshold': self.activity_threshold,
+                            'activity_shortfall': round(self.activity_threshold - activity_percentage, 2),
+                            'hours_worked': hours_worked,
+                            'leave_days': leave_days,
+                            'manager_name': manager_name,
+                            'manager_email': manager_email,
+                            'activity_trend': activity_report.activity_trend,
+                            'low_productivity_periods': activity_report.total_low_productivity_periods,
+                            'high_productivity_periods': activity_report.total_high_productivity_periods,
+                            'most_productive_day': activity_report.most_productive_day.strftime('%A') if activity_report.most_productive_day else 'N/A',
+                            'least_productive_day': activity_report.least_productive_day.strftime('%A') if activity_report.least_productive_day else 'N/A',
+                            'period_start': work_week_start.strftime('%Y-%m-%d'),
+                            'period_end': work_week_end.strftime('%Y-%m-%d')
+                        }
+
+                        employees_needing_alerts.append(employee_alert_data)
+                        logger.info(f"🔴 {employee_name}: {activity_percentage:.1f}% activity (below {self.activity_threshold}% threshold)")
+                    else:
+                        logger.debug(f"✅ {employee_name}: {activity_percentage:.1f}% activity (above threshold)")
+
+                except Exception as e:
+                    logger.error(f"Error processing activity for {employee.get('name', 'Unknown')}: {e}")
+                    continue
+
+            logger.info(f"Found {len(employees_needing_alerts)} employees needing activity alerts")
+            return employees_needing_alerts
+
+        except Exception as e:
+            logger.error(f"Error getting employees needing activity alerts: {e}")
+            return []
+
+    def _get_manager_name(self, employee_name: str) -> str:
+        """Get manager name for an employee"""
+        try:
+            from src.manager_mapping import get_manager_name
+            return get_manager_name(employee_name) or "Not Assigned"
+        except Exception as e:
+            logger.error(f"Error getting manager name for {employee_name}: {e}")
+            return "Not Assigned"
+
+    def _get_manager_email(self, employee_name: str) -> str:
+        """Get manager email for an employee"""
+        try:
+            from src.manager_mapping import get_manager_email
+            return get_manager_email(employee_name) or "Not Available"
+        except Exception as e:
+            logger.error(f"Error getting manager email for {employee_name}: {e}")
+            return "Not Available"

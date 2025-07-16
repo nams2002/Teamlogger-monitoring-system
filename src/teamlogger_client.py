@@ -4,6 +4,7 @@ import logging
 from typing import Dict, List, Optional
 from config.settings import Config
 import time
+from .activity_tracker import ActivityTracker, ActivityPeriod, WeeklyActivityReport
 
 logger = logging.getLogger(__name__)
 
@@ -15,12 +16,13 @@ class TeamLoggerClient:
             base_url = base_url.split('?')[0]
         if base_url.endswith('/'):
             base_url = base_url[:-1]
-        
+
         self.base_url = base_url
         self.headers = {
             'Authorization': f'Bearer {Config.TEAMLOGGER_BEARER_TOKEN}',
             'Content-Type': 'application/json'
         }
+        self.activity_tracker = ActivityTracker()
         logger.info(f"TeamLogger base URL: {self.base_url}")
     
     def _get_timestamp(self, dt: datetime) -> int:
@@ -535,3 +537,152 @@ class TeamLoggerClient:
         except Exception as e:
             logger.error(f"Error getting work week hours for all employees: {str(e)}")
             return []
+
+    def get_employee_activity_data(self, employee_id: str, start_date: datetime, end_date: datetime) -> Optional[Dict]:
+        """
+        Get detailed activity data for an employee including actChart data
+
+        Args:
+            employee_id: Employee ID
+            start_date: Start date for the period
+            end_date: End date for the period
+
+        Returns:
+            Dictionary containing activity data or None if not found
+        """
+        try:
+            report = self.get_employee_summary_report(start_date, end_date)
+
+            if not report or not isinstance(report, list):
+                logger.warning(f"No report data available for activity tracking")
+                return None
+
+            # Find employee data in the report
+            for employee_data in report:
+                if str(employee_data.get('id', '')) == str(employee_id):
+                    # Extract activity data from the employee record
+                    active_minutes_ratio = employee_data.get('activeMinutesRatio', 0)
+                    active_seconds_ratio = employee_data.get('activeSecondsRatio', 0)
+                    active_seconds_count = employee_data.get('activeSecondsCount', 0)
+                    inactive_seconds_count = employee_data.get('inactiveSecondsCount', 0)
+                    total_seconds_count = employee_data.get('totalSecondsCount', 0)
+
+                    # Calculate activity percentage from the ratios
+                    activity_percentage = active_minutes_ratio * 100 if active_minutes_ratio else 0
+
+                    # Get basic employee info
+                    employee_info = {
+                        'employee_id': employee_id,
+                        'employee_name': employee_data.get('name', 'Unknown'),
+                        'employee_email': employee_data.get('email', ''),
+                        'period_start': start_date,
+                        'period_end': end_date,
+                        'activity_percentage': round(activity_percentage, 2),
+                        'active_minutes_ratio': active_minutes_ratio,
+                        'active_seconds_ratio': active_seconds_ratio,
+                        'active_seconds_count': active_seconds_count,
+                        'inactive_seconds_count': inactive_seconds_count,
+                        'total_seconds_count': total_seconds_count,
+                        'active_tuple_count': employee_data.get('activeTimeTupleCount', 0),
+                        'inactive_tuple_count': employee_data.get('inactiveTimeTupleCount', 0),
+                        'total_hours': self._extract_total_hours(employee_data),
+                        'idle_hours': self._extract_idle_hours(employee_data),
+                        'raw_data': employee_data
+                    }
+
+                    logger.info(f"Retrieved activity data for {employee_info['employee_name']}")
+                    return employee_info
+
+            logger.warning(f"Employee {employee_id} not found in activity report")
+            return None
+
+        except Exception as e:
+            logger.error(f"Error getting activity data for employee {employee_id}: {str(e)}")
+            return None
+
+    def get_employee_activity_periods(self, employee_id: str, start_date: datetime, end_date: datetime) -> List[ActivityPeriod]:
+        """
+        Get activity periods for an employee
+
+        Args:
+            employee_id: Employee ID
+            start_date: Start date for the period
+            end_date: End date for the period
+
+        Returns:
+            List of ActivityPeriod objects
+        """
+        try:
+            activity_data = self.get_employee_activity_data(employee_id, start_date, end_date)
+
+            if not activity_data:
+                logger.warning(f"No activity data found for employee {employee_id}")
+                return []
+
+            # Extract activity periods using the activity tracker with real employee data
+            periods = self.activity_tracker.extract_activity_from_employee_data(
+                activity_data['raw_data'], start_date, end_date
+            )
+
+            logger.info(f"Extracted {len(periods)} activity periods for employee {employee_id}")
+            return periods
+
+        except Exception as e:
+            logger.error(f"Error getting activity periods for employee {employee_id}: {str(e)}")
+            return []
+
+    def generate_employee_activity_report(self, employee_id: str, start_date: datetime, end_date: datetime) -> Optional[WeeklyActivityReport]:
+        """
+        Generate comprehensive activity report for an employee
+
+        Args:
+            employee_id: Employee ID
+            start_date: Start date for the period
+            end_date: End date for the period
+
+        Returns:
+            WeeklyActivityReport object or None if no data
+        """
+        try:
+            # Get activity data
+            activity_data = self.get_employee_activity_data(employee_id, start_date, end_date)
+
+            if not activity_data:
+                logger.warning(f"No activity data found for employee {employee_id}")
+                return None
+
+            # Get activity periods
+            periods = self.get_employee_activity_periods(employee_id, start_date, end_date)
+
+            if not periods:
+                logger.warning(f"No activity periods found for employee {employee_id}")
+                # Return empty report instead of None
+                return WeeklyActivityReport(
+                    employee_id=employee_id,
+                    employee_name=activity_data.get('employee_name', 'Unknown'),
+                    week_start=start_date,
+                    week_end=end_date,
+                    daily_summaries=[],
+                    overall_average_activity=0,
+                    total_low_productivity_periods=0,
+                    total_high_productivity_periods=0,
+                    most_productive_day=None,
+                    least_productive_day=None,
+                    activity_trend="No Data"
+                )
+
+            # Generate weekly report
+            report = self.activity_tracker.generate_weekly_report(
+                employee_id=employee_id,
+                employee_name=activity_data['employee_name'],
+                periods=periods,
+                week_start=start_date,
+                week_end=end_date
+            )
+
+            logger.info(f"Generated activity report for {activity_data['employee_name']}")
+            return report
+
+        except Exception as e:
+            logger.error(f"Error generating activity report for employee {employee_id}: {str(e)}")
+            return None

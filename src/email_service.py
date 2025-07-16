@@ -444,3 +444,204 @@ class EmailService:
         except Exception as e:
             logger.error(f"Failed to send test email: {str(e)}")
             return False
+
+    def send_low_activity_alert(self, employee_data: Dict) -> bool:
+        """
+        Send low activity alert email to employee and manager
+
+        Args:
+            employee_data: Dictionary containing employee activity data
+
+        Returns:
+            bool: True if email sent successfully, False otherwise
+        """
+        try:
+            employee_name = employee_data.get('name', 'Employee')
+            employee_email = employee_data.get('email', '')
+            manager_email = employee_data.get('manager_email', '')
+
+            if not employee_email:
+                logger.error(f"No email address for {employee_name}")
+                return False
+
+            # Create email message
+            msg = MIMEMultipart('alternative')
+            msg['Subject'] = f"Activity Level Reminder - {employee_name}"
+            msg['From'] = self.from_email
+            msg['To'] = employee_email
+
+            # Add manager and HR to CC
+            cc_emails = list(self.cc_emails)
+            if manager_email and manager_email != "Not Available":
+                cc_emails.append(manager_email)
+
+            if cc_emails:
+                msg['Cc'] = ', '.join(cc_emails)
+
+            # Create HTML email body
+            html_body = self._create_activity_alert_html(employee_data)
+            html_part = MIMEText(html_body, 'html')
+            msg.attach(html_part)
+
+            # Send email
+            recipients = [employee_email] + cc_emails
+
+            with smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=30) as server:
+                server.starttls()
+                server.login(self.smtp_username, self.smtp_password)
+                server.send_message(msg, from_addr=self.from_email, to_addrs=recipients)
+
+            self.emails_sent += 1
+            logger.info(f"📧 Activity alert sent to {employee_name} ({employee_email})")
+            if manager_email and manager_email != "Not Available":
+                logger.info(f"📧 CC'd to manager: {manager_email}")
+
+            return True
+
+        except Exception as e:
+            self.emails_failed += 1
+            logger.error(f"Failed to send activity alert to {employee_data.get('name', 'Unknown')}: {str(e)}")
+            return False
+
+    def _create_activity_alert_html(self, employee_data: Dict) -> str:
+        """Create HTML content for activity alert email"""
+
+        activity_percentage = employee_data.get('activity_percentage', 0)
+        activity_threshold = employee_data.get('activity_threshold', 50)
+        activity_shortfall = employee_data.get('activity_shortfall', 0)
+
+        # Determine alert level based on activity percentage
+        if activity_percentage < 30:
+            alert_level = "Critical"
+            alert_color = "#dc3545"  # Red
+        elif activity_percentage < 40:
+            alert_level = "High"
+            alert_color = "#fd7e14"  # Orange
+        else:
+            alert_level = "Medium"
+            alert_color = "#ffc107"  # Yellow
+
+        html_template = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>Activity Level Reminder</title>
+            <style>
+                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                .header { background-color: {alert_color}; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
+                .content { background-color: #f8f9fa; padding: 20px; border: 1px solid #dee2e6; }
+                .footer { background-color: #e9ecef; padding: 15px; text-align: center; border-radius: 0 0 5px 5px; font-size: 12px; }
+                .stats-table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+                .stats-table th, .stats-table td { padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }
+                .stats-table th { background-color: #e9ecef; }
+                .alert-box { background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; margin: 15px 0; border-radius: 5px; }
+                .recommendations { background-color: #d1ecf1; border: 1px solid #bee5eb; padding: 15px; margin: 15px 0; border-radius: 5px; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h2>🔔 Activity Level Reminder</h2>
+                    <p>Alert Level: <strong>{alert_level}</strong></p>
+                </div>
+
+                <div class="content">
+                    <p>Dear <strong>{employee_name}</strong>,</p>
+
+                    <p>This is a notification regarding your activity levels for the previous work week.</p>
+
+                    <div class="alert-box">
+                        <h3>📊 Activity Summary</h3>
+                        <p><strong>Your activity level was {activity_percentage}%, which is below our minimum threshold of {activity_threshold}%.</strong></p>
+                    </div>
+
+                    <table class="stats-table">
+                        <tr>
+                            <th>Metric</th>
+                            <th>Value</th>
+                        </tr>
+                        <tr>
+                            <td>Week Period</td>
+                            <td>{period_start} to {period_end}</td>
+                        </tr>
+                        <tr>
+                            <td>Your Activity Level</td>
+                            <td><strong>{activity_percentage}%</strong></td>
+                        </tr>
+                        <tr>
+                            <td>Required Activity Level</td>
+                            <td>{activity_threshold}%</td>
+                        </tr>
+                        <tr>
+                            <td>Activity Shortfall</td>
+                            <td>{activity_shortfall}%</td>
+                        </tr>
+                        <tr>
+                            <td>Hours Worked</td>
+                            <td>{hours_worked}h</td>
+                        </tr>
+                        <tr>
+                            <td>Leave Days</td>
+                            <td>{leave_days}</td>
+                        </tr>
+                        <tr>
+                            <td>Activity Trend</td>
+                            <td>{activity_trend}</td>
+                        </tr>
+                        <tr>
+                            <td>Most Productive Day</td>
+                            <td>{most_productive_day}</td>
+                        </tr>
+                        <tr>
+                            <td>Least Productive Day</td>
+                            <td>{least_productive_day}</td>
+                        </tr>
+                    </table>
+
+                    <div class="recommendations">
+                        <h3>💡 Recommendations</h3>
+                        <ul>
+                            <li><strong>Review your work patterns:</strong> Identify times when you're most productive and try to schedule important tasks during those periods.</li>
+                            <li><strong>Minimize distractions:</strong> Consider using focus tools or techniques to maintain higher activity levels.</li>
+                            <li><strong>Take regular breaks:</strong> Short breaks can help maintain consistent activity throughout the day.</li>
+                            <li><strong>Communicate with your manager:</strong> If there are specific challenges affecting your productivity, please discuss them with your manager.</li>
+                        </ul>
+                    </div>
+
+                    <p><strong>Manager:</strong> {manager_name}</p>
+
+                    <p>If you have any questions or concerns about this notification, please don't hesitate to reach out to your manager or HR.</p>
+
+                    <p>Best regards,<br>
+                    <strong>HR Team</strong><br>
+                    Rapid Innovation</p>
+                </div>
+
+                <div class="footer">
+                    <p>This is an automated message from the Employee Monitoring System.</p>
+                    <p>Generated on {current_date}</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """.format(
+            alert_level=alert_level,
+            alert_color=alert_color,
+            employee_name=employee_data.get('name', 'Employee'),
+            activity_percentage=activity_percentage,
+            activity_threshold=activity_threshold,
+            activity_shortfall=activity_shortfall,
+            period_start=employee_data.get('period_start', 'N/A'),
+            period_end=employee_data.get('period_end', 'N/A'),
+            hours_worked=employee_data.get('hours_worked', 0),
+            leave_days=employee_data.get('leave_days', 0),
+            activity_trend=employee_data.get('activity_trend', 'N/A'),
+            most_productive_day=employee_data.get('most_productive_day', 'N/A'),
+            least_productive_day=employee_data.get('least_productive_day', 'N/A'),
+            manager_name=employee_data.get('manager_name', 'Not Assigned'),
+            current_date=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        )
+
+        return html_template

@@ -111,21 +111,27 @@ def display_monitoring_results(results):
 def preview_mode():
     """Run preview mode - ACCURATE with real-time data"""
     workflow = st.session_state.workflow_manager
-    
-    with st.spinner("🔍 Analyzing employee hours with real-time data..."):
-        employees_needing_alerts = workflow.get_employees_needing_real_alerts()
-    
-    if not employees_needing_alerts:
-        st.success("✅ No employees need alerts for the previous work week!")
-        
-        work_week_start, work_week_end = workflow._get_monitoring_period()
-        st.info(f"All employees met their hour requirements for {work_week_start.strftime('%Y-%m-%d')} to {work_week_end.strftime('%Y-%m-%d')}")
-        
-    else:
-        st.warning(f"⚠️ {len(employees_needing_alerts)} employees would receive alerts")
-        
-        # Create tabs
-        tab1, tab2, tab3 = st.tabs(["📋 Employee List", "📊 Visualizations", "📧 Email Preview"])
+
+    # Create tabs for different types of alerts
+    alert_tab1, alert_tab2 = st.tabs(["⏰ Hours Alerts", "📊 Activity Alerts"])
+
+    with alert_tab1:
+        st.subheader("⏰ Hours-Based Alerts")
+
+        with st.spinner("🔍 Analyzing employee hours with real-time data..."):
+            employees_needing_alerts = workflow.get_employees_needing_real_alerts()
+
+        if not employees_needing_alerts:
+            st.success("✅ No employees need hours alerts for the previous work week!")
+
+            work_week_start, work_week_end = workflow._get_monitoring_period()
+            st.info(f"All employees met their hour requirements for {work_week_start.strftime('%Y-%m-%d')} to {work_week_end.strftime('%Y-%m-%d')}")
+
+        else:
+            st.warning(f"⚠️ {len(employees_needing_alerts)} employees would receive hours alerts")
+
+            # Create tabs
+            tab1, tab2, tab3 = st.tabs(["📋 Employee List", "📊 Visualizations", "📧 Email Preview"])
         
         with tab1:
             # Display employee data
@@ -254,6 +260,172 @@ def preview_mode():
                 """
                 
                 st.markdown(email_preview)
+
+    with alert_tab2:
+        st.subheader("📊 Activity-Based Alerts")
+
+        with st.spinner("🔍 Analyzing employee activity levels..."):
+            employees_needing_activity_alerts = workflow.get_employees_needing_activity_alerts()
+
+        if not employees_needing_activity_alerts:
+            st.success("✅ No employees need activity alerts for the previous work week!")
+
+            work_week_start, work_week_end = workflow._get_monitoring_period()
+            st.info(f"All employees met the minimum activity threshold (50%) for {work_week_start.strftime('%Y-%m-%d')} to {work_week_end.strftime('%Y-%m-%d')}")
+
+        else:
+            st.warning(f"⚠️ {len(employees_needing_activity_alerts)} employees would receive activity alerts")
+
+            # Create tabs for activity alerts
+            activity_tab1, activity_tab2, activity_tab3 = st.tabs(["📋 Employee List", "📊 Activity Analysis", "📧 Email Preview"])
+
+            with activity_tab1:
+                # Convert to DataFrame for display
+                activity_data = []
+                for emp in employees_needing_activity_alerts:
+                    activity_data.append({
+                        'Name': emp['name'],
+                        'Activity %': f"{emp['activity_percentage']:.1f}%",
+                        'Threshold': f"{emp['activity_threshold']:.0f}%",
+                        'Shortfall': f"{emp['activity_shortfall']:.1f}%",
+                        'Hours Worked': f"{emp['hours_worked']:.1f}h",
+                        'Leave Days': emp['leave_days'],
+                        'Trend': emp['activity_trend'],
+                        'Manager': emp['manager_name'],
+                        'Manager Email': emp['manager_email']
+                    })
+
+                df_activity = pd.DataFrame(activity_data)
+
+                # Filters
+                col1, col2, col3 = st.columns(3)
+
+                with col1:
+                    manager_filter = st.multiselect(
+                        "Filter by Manager",
+                        options=df_activity['Manager'].unique(),
+                        default=[]
+                    )
+
+                with col2:
+                    min_shortfall = st.slider(
+                        "Min activity shortfall (%)",
+                        min_value=0.0,
+                        max_value=50.0,
+                        value=0.0,
+                        step=1.0
+                    )
+
+                with col3:
+                    search_term = st.text_input("Search employee", "")
+
+                # Apply filters
+                filtered_df = df_activity.copy()
+                if manager_filter:
+                    filtered_df = filtered_df[filtered_df['Manager'].isin(manager_filter)]
+                if min_shortfall > 0:
+                    filtered_df = filtered_df[filtered_df['Shortfall'].str.rstrip('%').astype(float) >= min_shortfall]
+                if search_term:
+                    filtered_df = filtered_df[filtered_df['Name'].str.contains(search_term, case=False, na=False)]
+
+                # Display filtered data
+                st.dataframe(
+                    filtered_df,
+                    use_container_width=True,
+                    hide_index=True
+                )
+
+                # Download button
+                if len(filtered_df) > 0:
+                    csv = filtered_df.to_csv(index=False)
+                    st.download_button(
+                        label="📥 Download Activity Alert List (CSV)",
+                        data=csv,
+                        file_name=f"activity_alerts_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                        mime="text/csv"
+                    )
+
+            with activity_tab2:
+                # Activity analysis visualizations
+                if len(employees_needing_activity_alerts) > 0:
+                    # Activity distribution
+                    activity_percentages = [emp['activity_percentage'] for emp in employees_needing_activity_alerts]
+
+                    fig1 = px.histogram(
+                        x=activity_percentages,
+                        nbins=10,
+                        title='Activity Percentage Distribution (Below Threshold)',
+                        labels={'x': 'Activity Percentage', 'y': 'Count'}
+                    )
+                    fig1.add_vline(x=50, line_dash="dash", line_color="red", annotation_text="Threshold (50%)")
+                    st.plotly_chart(fig1, use_container_width=True)
+
+                    # Manager breakdown
+                    manager_counts = {}
+                    for emp in employees_needing_activity_alerts:
+                        manager = emp['manager_name']
+                        manager_counts[manager] = manager_counts.get(manager, 0) + 1
+
+                    if manager_counts:
+                        fig2 = px.bar(
+                            x=list(manager_counts.keys()),
+                            y=list(manager_counts.values()),
+                            labels={'x': 'Manager', 'y': 'Activity Alert Count'},
+                            title='Activity Alerts by Manager'
+                        )
+                        st.plotly_chart(fig2, use_container_width=True)
+
+                    # Activity vs Hours scatter plot
+                    hours_data = [emp['hours_worked'] for emp in employees_needing_activity_alerts]
+                    names = [emp['name'] for emp in employees_needing_activity_alerts]
+
+                    fig3 = px.scatter(
+                        x=hours_data,
+                        y=activity_percentages,
+                        hover_name=names,
+                        labels={'x': 'Hours Worked', 'y': 'Activity Percentage'},
+                        title='Activity Percentage vs Hours Worked'
+                    )
+                    fig3.add_hline(y=50, line_dash="dash", line_color="red", annotation_text="Activity Threshold")
+                    st.plotly_chart(fig3, use_container_width=True)
+
+            with activity_tab3:
+                # Email preview for activity alerts
+                st.subheader("📧 Activity Alert Email Preview")
+
+                if len(employees_needing_activity_alerts) > 0:
+                    sample = employees_needing_activity_alerts[0]
+
+                    email_preview = f"""
+                    **To:** {sample['email']}
+                    **CC:** {sample['manager_email']}, teamhr@rapidinnovation.dev
+                    **Subject:** Activity Level Reminder - {sample['name']}
+
+                    Dear {sample['name']},
+
+                    This is a notification regarding your activity levels for the previous work week.
+
+                    **Week Period:** {sample['period_start']} to {sample['period_end']}
+
+                    **Your Activity Statistics:**
+                    - Activity Level: {sample['activity_percentage']}%
+                    - Required Activity Level: {sample['activity_threshold']}%
+                    - Activity Shortfall: {sample['activity_shortfall']}%
+                    - Hours Worked: {sample['hours_worked']}h
+                    - Leave Days: {sample['leave_days']}
+                    - Activity Trend: {sample['activity_trend']}
+                    - Most Productive Day: {sample['most_productive_day']}
+                    - Least Productive Day: {sample['least_productive_day']}
+
+                    **Manager:** {sample['manager_name']}
+
+                    Your activity level was below our minimum threshold of 50%. Please review your work patterns and consider the recommendations provided in the full email.
+
+                    Best regards,
+                    HR Team
+                    """
+
+                    st.markdown(email_preview)
 
 # Main page content
 st.title("📊 Employee Hours Monitoring")
