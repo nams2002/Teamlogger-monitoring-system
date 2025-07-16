@@ -606,6 +606,66 @@ class WorkflowManager:
             logger.error(f"Error getting employees needing activity alerts: {e}")
             return []
 
+    def run_activity_monitoring_workflow(self):
+        """Run the activity monitoring workflow - separate from hours monitoring"""
+        start_time = datetime.now()
+        logger.info("="*60)
+        logger.info("Starting Activity Monitoring Workflow")
+        logger.info(f"Execution time: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+        logger.info("="*60)
+
+        # Get monitoring period
+        work_week_start, work_week_end = self._get_monitoring_period()
+        logger.info(f"Activity monitoring period: {work_week_start.strftime('%Y-%m-%d')} to {work_week_end.strftime('%Y-%m-%d')}")
+
+        # Get employees needing activity alerts
+        employees_needing_alerts = self.get_employees_needing_activity_alerts()
+
+        if not employees_needing_alerts:
+            logger.info("✅ No employees need activity alerts - all above 50% threshold!")
+            return {
+                'total_employees_checked': len(self._filter_active_employees(self.teamlogger.get_all_employees(), work_week_start, work_week_end)),
+                'activity_alerts_sent': 0,
+                'activity_errors': 0,
+                'execution_time': str(datetime.now() - start_time)
+            }
+
+        # Send activity alerts
+        alerts_sent = 0
+        errors_count = 0
+
+        for employee_data in employees_needing_alerts:
+            try:
+                if self.email_service.send_low_activity_alert(employee_data):
+                    alerts_sent += 1
+                    logger.info(f"📧 Activity alert sent to {employee_data['name']}")
+                else:
+                    errors_count += 1
+                    logger.error(f"❌ Failed to send activity alert to {employee_data['name']}")
+
+            except Exception as e:
+                errors_count += 1
+                logger.error(f"Error sending activity alert to {employee_data.get('name', 'Unknown')}: {e}")
+
+        # Summary
+        execution_time = datetime.now() - start_time
+
+        logger.info("="*60)
+        logger.info("ACTIVITY MONITORING WORKFLOW SUMMARY")
+        logger.info("="*60)
+        logger.info(f"Execution time: {execution_time}")
+        logger.info(f"Employees checked: {len(employees_needing_alerts)}")
+        logger.info(f"Activity alerts sent: {alerts_sent}")
+        logger.info(f"Activity errors: {errors_count}")
+        logger.info("="*60)
+
+        return {
+            'total_employees_checked': len(employees_needing_alerts),
+            'activity_alerts_sent': alerts_sent,
+            'activity_errors': errors_count,
+            'execution_time': str(execution_time)
+        }
+
     def _get_manager_name(self, employee_name: str) -> str:
         """Get manager name for an employee"""
         try:
