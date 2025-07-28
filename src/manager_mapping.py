@@ -228,6 +228,10 @@ NAME_VARIATIONS: Dict[str, str] = {
     'Pankaj Bansal': 'Pankaj kumar Bansal',
     'Rishab Kala': 'Rishabh Kala',
     'Shruti Agarwal': 'Shruti Agarwal',
+    # Fix for Shruti Kamle/Kamble spelling variation
+    'Shruti Kamle': 'Shruti Kamble',
+    'shruti kamle': 'Shruti Kamble',
+    'SHRUTI KAMLE': 'Shruti Kamble',
     'Aditya Singh': 'Aditya Singh',
     'Jeetanshu': 'Jeetanshu Srivastava',
     'Shwetha Kamath': 'Shwetha Vasanth Kamath',
@@ -261,7 +265,7 @@ def normalize_name(name: str) -> str:
     """
     if not name:
         return ""
-    
+
     # Get current mapping from Google Sheets
     reporting_managers = _manager_mapping_instance.get_current_mapping()
 
@@ -274,13 +278,44 @@ def normalize_name(name: str) -> str:
     for mapped_name in reporting_managers:
         if mapped_name.lower() == name_lower:
             return mapped_name
-    
-    # Try name variations
+
+    # Try name variations (this should catch Shruti Kamle -> Shruti Kamble)
     if name in NAME_VARIATIONS:
         return NAME_VARIATIONS[name]
-    
-    # Try partial match (first name + last name)
+
+    # Try case-insensitive name variations
+    for variation, canonical in NAME_VARIATIONS.items():
+        if variation.lower() == name_lower:
+            return canonical
+
+    # Try fuzzy matching for similar spellings (like Kamle vs Kamble)
     name_parts = name.split()
+    if len(name_parts) >= 2:
+        first_name = name_parts[0].lower()
+        last_name = name_parts[-1].lower()
+
+        # Look for best match based on first name and similar last name
+        best_match = None
+        best_score = 0
+
+        for mapped_name in reporting_managers:
+            mapped_parts = mapped_name.split()
+            if len(mapped_parts) >= 2:
+                mapped_first = mapped_parts[0].lower()
+                mapped_last = mapped_parts[-1].lower()
+
+                # Exact first name match
+                if mapped_first == first_name:
+                    # Calculate similarity score for last name
+                    score = calculate_name_similarity(last_name, mapped_last)
+                    if score > best_score and score > 0.7:  # Threshold for similarity
+                        best_score = score
+                        best_match = mapped_name
+
+        if best_match:
+            return best_match
+
+    # Try partial match (first name + last name) - exact match only
     if len(name_parts) >= 2:
         for mapped_name in reporting_managers:
             mapped_parts = mapped_name.split()
@@ -289,14 +324,60 @@ def normalize_name(name: str) -> str:
                     name_parts[-1].lower() == mapped_parts[-1].lower()):
                     return mapped_name
 
-    # Try just first name match
+    # Try just first name match (only if no better match found)
     if len(name_parts) >= 1:
         first_name = name_parts[0].lower()
+        matches = []
         for mapped_name in reporting_managers:
             if mapped_name.lower().startswith(first_name):
-                return mapped_name
-    
+                matches.append(mapped_name)
+
+        # If only one match, return it; otherwise, don't guess
+        if len(matches) == 1:
+            return matches[0]
+
     return name
+
+
+def calculate_name_similarity(name1: str, name2: str) -> float:
+    """
+    Calculate similarity between two names using simple character-based similarity
+    Returns a score between 0 and 1
+    """
+    if not name1 or not name2:
+        return 0.0
+
+    # Convert to lowercase for comparison
+    name1 = name1.lower()
+    name2 = name2.lower()
+
+    # If names are identical, return 1
+    if name1 == name2:
+        return 1.0
+
+    # Calculate character-based similarity
+    # Count common characters in the same positions
+    min_len = min(len(name1), len(name2))
+    max_len = max(len(name1), len(name2))
+
+    if max_len == 0:
+        return 0.0
+
+    # Count matching characters at same positions
+    matching_chars = sum(1 for i in range(min_len) if name1[i] == name2[i])
+
+    # Calculate similarity score
+    # Give higher weight to matching characters at the beginning
+    position_weight = sum(1.0 / (i + 1) for i in range(min_len) if name1[i] == name2[i])
+
+    # Combine position-based and length-based scoring
+    similarity = (matching_chars / max_len) * 0.7 + (position_weight / min_len) * 0.3
+
+    # Special case for very similar names (like "kamle" vs "kamble")
+    if abs(len(name1) - len(name2)) <= 1 and matching_chars >= min_len - 1:
+        similarity = max(similarity, 0.8)
+
+    return similarity
 
 
 def get_manager_name(employee_name: str, force_refresh: bool = False) -> Optional[str]:

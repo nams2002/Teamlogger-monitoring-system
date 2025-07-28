@@ -40,3 +40,9 @@ secrets.toml
 # Temporary files
 *.tmp
 *.temp
+
+# Test files
+test_*.py
+debug_*.py
+check_*.py
+*_test.py
