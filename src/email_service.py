@@ -196,11 +196,16 @@ class EmailService:
         """
         Check if email configuration is properly set up
         """
-        return (self.smtp_username and 
-                self.smtp_password and 
-                self.smtp_host and 
+        # Check if email alerts are enabled
+        if not Config.ENABLE_EMAIL_ALERTS:
+            logger.info("Email alerts are disabled in configuration")
+            return False
+
+        return (self.smtp_username and
+                self.smtp_password and
+                self.smtp_host and
                 self.from_email and
-                self.smtp_username != 'your_email@gmail.com' and 
+                self.smtp_username != 'your_email@gmail.com' and
                 self.smtp_password != 'your_app_password')
     
     def _create_real_email_subject(self, real_employee_data: Dict) -> str:

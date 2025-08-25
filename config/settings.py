@@ -100,7 +100,7 @@ class Config:
     DATABASE_URL = get_env_var('DATABASE_URL')
     
     # Feature Flags
-    ENABLE_EMAIL_ALERTS = get_env_var('ENABLE_EMAIL_ALERTS', 'true').lower() == 'true'
+    ENABLE_EMAIL_ALERTS = get_env_var('ENABLE_EMAIL_ALERTS', 'false').lower() == 'true'  # Disabled by default - preview mode only
     ENABLE_SLACK_NOTIFICATIONS = get_env_var('ENABLE_SLACK_NOTIFICATIONS', 'false').lower() == 'true'
     ENABLE_OPENAI_ENHANCEMENT = get_env_var('ENABLE_OPENAI_ENHANCEMENT', 'false').lower() == 'true'  # Disabled by default
     ENABLE_AI_INTELLIGENT_DECISIONS = get_env_var('ENABLE_AI_INTELLIGENT_DECISIONS', 'false').lower() == 'true'
@@ -327,17 +327,6 @@ class Config:
                 'context_analysis': cls.ENABLE_OPENAI_ENHANCEMENT and bool(cls.OPENAI_API_KEY),
                 'intelligent_overrides': cls.ENABLE_AI_INTELLIGENT_DECISIONS and bool(cls.OPENAI_API_KEY)
             }
-        }
-    
-    @classmethod
-    def get_ai_status(cls) -> dict:
-        """
-        Return whether AI is enabled (flag + key) and
-        whether a key is actually configured.
-        """
-        return {
-            "enabled": bool(cls.ENABLE_OPENAI_ENHANCEMENT and cls.OPENAI_API_KEY),
-            "api_key_configured": bool(cls.OPENAI_API_KEY),
         }
 
     @classmethod

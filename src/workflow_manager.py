@@ -414,7 +414,59 @@ class WorkflowManager:
                 logger.error(f"Error checking {employee.get('name', 'Unknown')}: {str(e)}")
         
         return employees_needing_alerts
-    
+
+    def run_preview_mode(self):
+        """Preview mode - show who would get alerts without sending emails"""
+        logger.info("🔍 PREVIEW MODE - No emails will be sent")
+        logger.info("="*60)
+
+        # Get monitoring period
+        work_week_start, work_week_end = self._get_monitoring_period()
+        logger.info(f"Preview period: {work_week_start.strftime('%Y-%m-%d')} to {work_week_end.strftime('%Y-%m-%d')}")
+
+        # Get employees who would receive alerts
+        employees_needing_alerts = self.get_employees_needing_real_alerts()
+
+        if not employees_needing_alerts:
+            logger.info("✅ No employees would receive alerts - all meeting requirements!")
+            return {
+                'preview_mode': True,
+                'alerts_would_be_sent': 0,
+                'employees_checked': len(self._filter_active_employees(self.teamlogger.get_all_employees(), work_week_start, work_week_end))
+            }
+
+        logger.info(f"📧 {len(employees_needing_alerts)} employees would receive alerts:")
+        logger.info("-" * 60)
+
+        for alert_data in employees_needing_alerts:
+            employee = alert_data['employee']
+            employee_name = employee.get('name', 'Unknown')
+            shortfall = alert_data['shortfall']
+            required_hours = alert_data['required_hours']
+            actual_hours = alert_data['weekly_data']['total_hours']
+            leave_days = alert_data['leave_days']
+
+            logger.info(f"👤 {employee_name}")
+            logger.info(f"   📧 Email: {employee.get('email', 'N/A')}")
+            logger.info(f"   ⏰ Hours: {actual_hours:.1f}h / {required_hours:.1f}h (shortfall: {shortfall:.1f}h)")
+            logger.info(f"   🏖️ Leave days: {leave_days}")
+
+            # Get manager info
+            manager_name = self._get_manager_name(employee_name)
+            manager_email = self._get_manager_email(employee_name)
+            if manager_name:
+                logger.info(f"   👔 Manager: {manager_name} ({manager_email})")
+            logger.info("")
+
+        logger.info("="*60)
+        logger.info(f"📊 PREVIEW SUMMARY: {len(employees_needing_alerts)} alerts would be sent")
+
+        return {
+            'preview_mode': True,
+            'alerts_would_be_sent': len(employees_needing_alerts),
+            'employee_details': employees_needing_alerts
+        }
+
     def should_send_alerts_today(self) -> bool:
         """Check if today is Monday or Tuesday"""
         return datetime.now().weekday() in [0, 1]

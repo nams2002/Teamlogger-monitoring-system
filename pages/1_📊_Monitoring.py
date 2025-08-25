@@ -264,6 +264,10 @@ def preview_hours_alerts():
 st.title("⏰ Employee Hours Monitoring")
 st.markdown("Monitor employee work hours and send alerts for insufficient hours - Optimized for accuracy")
 
+# Show preview mode notice if email alerts are disabled
+if not Config.ENABLE_EMAIL_ALERTS:
+    st.info("🔍 **Preview Mode Active** - No emails will be sent. The system will show who would receive alerts.")
+
 # System info
 col1, col2, col3 = st.columns(3)
 with col1:

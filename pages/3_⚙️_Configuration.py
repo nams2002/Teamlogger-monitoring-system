@@ -246,7 +246,9 @@ with tab1:
                 else:
                     st.success(f"✅ {feature}")
             else:
-                if feature == "AI Intelligence":
+                if feature == "Email Alerts":
+                    st.warning(f"🔍 {feature} (Preview Mode)")
+                elif feature == "AI Intelligence":
                     st.error(f"🤖 {feature}")
                 else:
                     st.error(f"❌ {feature}")
@@ -612,7 +614,10 @@ with col1:
 
 with col2:
     st.markdown("**Operational Status**")
-    st.write(f"- **Email Alerts:** {'✅ Enabled' if config_summary['features']['email_alerts'] else '❌ Disabled'}")
+    if config_summary['features']['email_alerts']:
+        st.write(f"- **Email Alerts:** ✅ Enabled")
+    else:
+        st.write(f"- **Email Alerts:** 🔍 Preview Mode (No emails sent)")
     st.write(f"- **🤖 AI Intelligence:** {'✅ Enabled' if config_summary['features']['openai_enhancement'] else '❌ Disabled'}")
     st.write(f"- **Slack Notifications:** {'✅ Enabled' if config_summary['features']['slack_notifications'] else '❌ Disabled'}")
     st.write(f"- **Excluded Employees:** {len(Config.EXCLUDED_EMPLOYEES)} employees")
