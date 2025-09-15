@@ -40,20 +40,25 @@ class GoogleSheetsLeaveClient:
         return None
     
     def _get_sheet_csv_url(self, sheet_name: str) -> Tuple[str, str]:
-        """Generate CSV export URLs with cache busting"""
+        """Generate CSV export URLs with cache busting - FIXED to fetch full range"""
         timestamp = int(time.time() * 1000000)
         random_id = random.randint(100000, 999999)
-        
+
         encoded_sheet_name = urllib.parse.quote(sheet_name)
-        
-        # Try both with sheet name and with GID
+
+        # FIXED: Try different approaches to get full sheet data
+        # Standard GVIZ URL (may truncate)
         gviz_url = f"https://docs.google.com/spreadsheets/d/{self.spreadsheet_id}/gviz/tq?tqx=out:csv&sheet={encoded_sheet_name}&ts={timestamp}&rnd={random_id}"
-        
-        export_url = None
-        if self.gid:
-            export_url = f"https://docs.google.com/spreadsheets/d/{self.spreadsheet_id}/export?format=csv&gid={self.gid}&ts={timestamp}"
-        
-        return gviz_url, export_url
+
+        # FIXED: Use export URL which should get full sheet data
+        export_url = f"https://docs.google.com/spreadsheets/d/{self.spreadsheet_id}/export?format=csv&gid={self.gid}&ts={timestamp}" if self.gid else None
+
+        # Alternative: Try published CSV URL if available
+        published_url = None
+        if hasattr(Config, 'GOOGLE_SHEETS_PUBLISHED_CSV_URL') and Config.GOOGLE_SHEETS_PUBLISHED_CSV_URL:
+            published_url = f"{Config.GOOGLE_SHEETS_PUBLISHED_CSV_URL}&ts={timestamp}"
+
+        return gviz_url, export_url, published_url
     
     def _fetch_sheet_data(self, sheet_name: str, force_refresh: bool = True) -> List[List[str]]:
         """Fetch sheet data - try multiple approaches"""
@@ -78,19 +83,60 @@ class GoogleSheetsLeaveClient:
         self._session.close()
         self._session = requests.Session()
         
-        # First try with GID if available (most reliable)
+        # FIXED: Try published CSV URL first (gets ALL columns - up to 35 for safety)
+        if hasattr(Config, 'GOOGLE_SHEETS_PUBLISHED_CSV_URL') and Config.GOOGLE_SHEETS_PUBLISHED_CSV_URL:
+            try:
+                # Force fetch ALL columns by adding range parameter
+                base_url = Config.GOOGLE_SHEETS_PUBLISHED_CSV_URL
+                # Add range to get columns A through AI (35 columns) to ensure we get all month days
+                published_url = f"{base_url}&range=A:AI&ts={int(time.time() * 1000)}"
+                logger.debug(f"Trying published CSV URL with full range: {published_url}")
+
+                response = self._session.get(published_url, timeout=30, headers=headers)
+                if response.status_code == 200:
+                    content = response.text
+                    csv_data = StringIO(content)
+                    reader = csv.reader(csv_data)
+                    data = list(reader)
+
+                    if data and len(data) > 1:
+                        logger.info(f"Successfully fetched {len(data)} rows with {len(data[0])} columns using published CSV with range")
+                        return data
+            except Exception as e:
+                logger.warning(f"Published CSV with range failed: {e}")
+
+        # Fallback: Try published URL without range
+        if hasattr(Config, 'GOOGLE_SHEETS_PUBLISHED_CSV_URL') and Config.GOOGLE_SHEETS_PUBLISHED_CSV_URL:
+            try:
+                published_url = f"{Config.GOOGLE_SHEETS_PUBLISHED_CSV_URL}&ts={int(time.time() * 1000)}"
+                logger.debug(f"Trying published CSV URL (fallback): {published_url}")
+
+                response = self._session.get(published_url, timeout=30, headers=headers)
+                if response.status_code == 200:
+                    content = response.text
+                    csv_data = StringIO(content)
+                    reader = csv.reader(csv_data)
+                    data = list(reader)
+
+                    if data and len(data) > 1:
+                        logger.info(f"Successfully fetched {len(data)} rows with {len(data[0])} columns using published CSV (fallback)")
+                        return data
+            except Exception as e:
+                logger.warning(f"Published CSV fallback failed: {e}")
+
+        # Try with GID if available (fallback)
         if self.gid:
             try:
                 url = f"https://docs.google.com/spreadsheets/d/{self.spreadsheet_id}/export?format=csv&gid={self.gid}"
                 logger.debug(f"Trying GID-based URL: {url}")
-                
+
                 response = self._session.get(url, timeout=30, headers=headers)
                 if response.status_code == 200:
                     content = response.text
                     csv_data = StringIO(content)
                     reader = csv.reader(csv_data)
                     data = list(reader)
-                    
+
                     if data:
                         logger.info(f"Successfully fetched {len(data)} rows using GID")
                         return data
@@ -100,9 +146,10 @@ class GoogleSheetsLeaveClient:
         # Try with sheet name variations
         for sheet_var in sheet_variations:
             try:
-                gviz_url, export_url = self._get_sheet_csv_url(sheet_var)
-                
-                for url in [gviz_url, export_url]:
+                gviz_url, export_url, published_url = self._get_sheet_csv_url(sheet_var)
+
+                # FIXED: Try published URL first (most complete data), then export, then gviz
+                for url_name, url in [("Published", published_url), ("Export", export_url), ("GVIZ", gviz_url)]:
                     if not url:
                         continue
                         
