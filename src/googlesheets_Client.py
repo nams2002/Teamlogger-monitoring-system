@@ -139,13 +139,13 @@ class GoogleSheetsLeaveClient:
                 if month_key not in processed_months:
                     processed_months.add(month_key)
                     
-                    # Try different sheet name formats
+                    # Try different sheet name formats - PRIORITIZE "Sep 25" format
                     sheet_names = [
-                        current_date.strftime("%B %y"),      # June 25
-                        current_date.strftime("%B %Y"),      # June 2025
-                        current_date.strftime("%b %y"),      # Jun 25
-                        current_date.strftime("%B_%y"),      # June_25
-                        current_date.strftime("%B-%y"),      # June-25
+                        current_date.strftime("%b %y"),      # Sep 25 (PRIORITY - has actual leave data)
+                        current_date.strftime("%B %y"),      # September 25
+                        current_date.strftime("%B %Y"),      # September 2025
+                        current_date.strftime("%B_%y"),      # September_25
+                        current_date.strftime("%B-%y"),      # September-25
                     ]
                     
                     sheet_data = []
@@ -366,8 +366,8 @@ class GoogleSheetsLeaveClient:
         try:
             logger.info("Validating Google Sheets access...")
             
-            # Try current month
-            test_sheet_name = datetime.now().strftime("%B %y")
+            # Try current month - use "Sep 25" format first
+            test_sheet_name = datetime.now().strftime("%b %y")  # Sep 25 format
             test_data = self._fetch_sheet_data(test_sheet_name)
             
             if test_data:
@@ -412,11 +412,11 @@ class GoogleSheetsLeaveClient:
             if not month:
                 month = datetime.now().month
             
-            # Try to fetch the sheet
+            # Try to fetch the sheet - PRIORITIZE "Sep 25" format
             sheet_names = [
-                datetime(year, month, 1).strftime("%B %y"),
-                datetime(year, month, 1).strftime("%B %Y"),
-                datetime(year, month, 1).strftime("%b %y"),
+                datetime(year, month, 1).strftime("%b %y"),      # Sep 25 (PRIORITY)
+                datetime(year, month, 1).strftime("%B %y"),      # September 25
+                datetime(year, month, 1).strftime("%B %Y"),      # September 2025
             ]
             
             sheet_data = []

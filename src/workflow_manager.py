@@ -333,7 +333,7 @@ class WorkflowManager:
                 leaves = self.google_sheets.get_employee_leaves(employee_name, start_date, end_date, force_refresh=True)
 
                 # Check if we can find this employee in the current month's sheet
-                current_month_sheet = datetime.now().strftime("%B %y")
+                current_month_sheet = datetime.now().strftime("%b %y")  # Use "Sep 25" format
                 sheet_data = self.google_sheets._fetch_sheet_data(current_month_sheet, force_refresh=True)
 
                 employee_found_in_sheet = False
