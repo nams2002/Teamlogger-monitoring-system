@@ -272,11 +272,11 @@ class WorkflowManager:
 
                 # Try to get sheet data (works with both API and CSV clients)
                 if hasattr(self.google_sheets, 'get_sheet_data'):
-                    # Using API client
-                    sheet_data = self.google_sheets.get_sheet_data(sheet_name)
+                    # Using API client - use cache to avoid rate limits
+                    sheet_data = self.google_sheets.get_sheet_data(sheet_name, use_cache=True)
                 else:
-                    # Using CSV client
-                    sheet_data = self.google_sheets._fetch_sheet_data(sheet_name, force_refresh=True)
+                    # Using CSV client - use cache to avoid rate limits
+                    sheet_data = self.google_sheets._fetch_sheet_data(sheet_name, force_refresh=False)
 
                 if not sheet_data or len(sheet_data) < 2:
                     logger.debug(f"No data for sheet '{sheet_name}'")
@@ -352,10 +352,10 @@ class WorkflowManager:
         return 8.0 * total_working_days
     
     def _get_working_day_leaves_count_realtime(self, employee_name: str, start_date: datetime, end_date: datetime) -> float:
-        """Get leave count with FORCE REFRESH for real-time accuracy"""
+        """Get leave count with real-time accuracy (using cache to avoid rate limits)"""
         try:
-            # FIXED: Force refresh for real-time data
-            leaves = self.google_sheets.get_employee_leaves(employee_name, start_date, end_date, force_refresh=True)
+            # Use cache to avoid rate limits - data is fresh enough for the session
+            leaves = self.google_sheets.get_employee_leaves(employee_name, start_date, end_date, force_refresh=False)
             
             working_day_leave_count = 0.0
             
@@ -397,7 +397,8 @@ class WorkflowManager:
     def _get_working_day_leaves_count(self, employee_name: str, start_date: datetime, end_date: datetime) -> float:
         """Get count of approved leave days that fall on working days (Monday-Friday) only"""
         try:
-            leaves = self.google_sheets.get_employee_leaves(employee_name, start_date, end_date, force_refresh=True)
+            # Use cache to avoid rate limits
+            leaves = self.google_sheets.get_employee_leaves(employee_name, start_date, end_date, force_refresh=False)
             working_day_leave_count = 0.0
             
             for leave in leaves:
@@ -444,11 +445,13 @@ class WorkflowManager:
             try:
                 # Try to get leave data for this employee from Google Sheets
                 # If the employee is not in the sheet, this will return empty or fail
-                leaves = self.google_sheets.get_employee_leaves(employee_name, start_date, end_date, force_refresh=True)
+                # Use cache to avoid rate limits (force_refresh=False)
+                leaves = self.google_sheets.get_employee_leaves(employee_name, start_date, end_date, force_refresh=False)
 
                 # Check if we can find this employee in the current month's sheet
                 current_month_sheet = datetime.now().strftime("%b %y")  # Use "Sep 25" format
-                sheet_data = self.google_sheets._fetch_sheet_data(current_month_sheet, force_refresh=True)
+                # Use cache to avoid rate limits (force_refresh=False)
+                sheet_data = self.google_sheets._fetch_sheet_data(current_month_sheet, force_refresh=False)
 
                 employee_found_in_sheet = False
                 if sheet_data:
