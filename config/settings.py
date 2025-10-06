@@ -35,6 +35,10 @@ class Config:
     GOOGLE_SHEETS_ID = get_env_var('GOOGLE_SHEETS_ID', '1RJt6TXG_x5EmTWX6YNyC9qiCCEVsmb4lBjTUe2Ua8Yk')
     GOOGLE_SHEETS_URL = get_env_var('GOOGLE_SHEETS_URL', 'https://docs.google.com/spreadsheets/d/1RJt6TXG_x5EmTWX6YNyC9qiCCEVsmb4lBjTUe2Ua8Yk/edit?usp=sharing')
     GOOGLE_SHEETS_PUBLISHED_CSV_URL = get_env_var("GOOGLE_SHEETS_PUBLISHED_CSV_URL")
+
+    # Google Sheets API Configuration (for multi-sheet access)
+    USE_GOOGLE_SHEETS_API = get_env_var('USE_GOOGLE_SHEETS_API', 'false').lower() == 'true'
+    GOOGLE_SHEETS_CREDENTIALS_FILE = get_env_var('GOOGLE_SHEETS_CREDENTIALS_FILE', 'credentials/google-sheets-service-account.json')
     
     # Email Configuration
     SMTP_HOST = get_env_var('SMTP_HOST', 'smtp.gmail.com')

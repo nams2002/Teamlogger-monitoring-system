@@ -12,7 +12,25 @@ logger = logging.getLogger(__name__)
 class WorkflowManager:
     def __init__(self):
         self.teamlogger = TeamLoggerClient()
-        self.google_sheets = GoogleSheetsLeaveClient()
+
+        # Initialize Google Sheets client (API or CSV)
+        if Config.USE_GOOGLE_SHEETS_API:
+            try:
+                from src.googlesheets_api_client import GoogleSheetsAPIClient
+                self.google_sheets_api = GoogleSheetsAPIClient()
+                if self.google_sheets_api.is_available():
+                    self.google_sheets = self.google_sheets_api
+                    logger.info("✅ Using Google Sheets API for multi-sheet access")
+                else:
+                    logger.warning("⚠️ Google Sheets API not available, falling back to CSV")
+                    self.google_sheets = GoogleSheetsLeaveClient()
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to initialize Google Sheets API: {e}")
+                self.google_sheets = GoogleSheetsLeaveClient()
+        else:
+            self.google_sheets = GoogleSheetsLeaveClient()
+            logger.info("Using CSV export for Google Sheets access")
+
         self.email_service = EmailService()
         self.activity_analyzer = ActivityAnalyzer(self.teamlogger)
         
@@ -176,14 +194,17 @@ class WorkflowManager:
             return {'status': 'no_data', 'employee': employee_name}
         
         actual_hours_worked = weekly_data['total_hours']
-        
+
         # FIXED: Get leave days with force refresh for real-time accuracy
         leave_days = self._get_working_day_leaves_count_realtime(
             employee_name, work_week_start, work_week_end
         )
-        
-        # Calculate requirements
-        required_hours = self._calculate_required_hours(leave_days)
+
+        # Detect company-wide holidays in this period
+        company_holidays = self._get_company_holidays_in_period(work_week_start, work_week_end)
+
+        # Calculate requirements (including company holidays)
+        required_hours = self._calculate_required_hours(leave_days, company_holidays)
         acceptable_hours = max(0, required_hours - Config.HOURS_BUFFER)  # 3-hour buffer
         
         # REMOVED: 10-minute negligible shortfall check
@@ -231,11 +252,104 @@ class WorkflowManager:
             logger.error(f"❌ Failed to send alert to {employee_name}")
             return {'status': 'error', 'employee': employee_name}
     
-    def _calculate_required_hours(self, leave_days: float) -> float:
-        """Simple calculation: 8 hours × (5 - leave_days)"""
-        if leave_days >= 5:
+    def _get_company_holidays_in_period(self, start_date: datetime, end_date: datetime) -> int:
+        """
+        Detect company-wide holidays in the given period by checking the sheet directly.
+        A day is considered a company holiday if it's marked as 'Holiday' for most employees.
+        """
+        try:
+            company_holidays = 0
+            current_date = start_date
+
+            while current_date <= end_date:
+                # Skip weekends
+                if current_date.weekday() >= 5:  # Saturday=5, Sunday=6
+                    current_date += timedelta(days=1)
+                    continue
+
+                # Get the sheet for this month
+                sheet_name = current_date.strftime("%b %y")  # e.g., "Oct 25"
+
+                # Try to get sheet data (works with both API and CSV clients)
+                if hasattr(self.google_sheets, 'get_sheet_data'):
+                    # Using API client
+                    sheet_data = self.google_sheets.get_sheet_data(sheet_name)
+                else:
+                    # Using CSV client
+                    sheet_data = self.google_sheets._fetch_sheet_data(sheet_name, force_refresh=True)
+
+                if not sheet_data or len(sheet_data) < 2:
+                    logger.debug(f"No data for sheet '{sheet_name}'")
+                    current_date += timedelta(days=1)
+                    continue
+
+                # Find the column for this day
+                day_of_month = current_date.day
+                header_row = sheet_data[0]
+                day_column = None
+
+                for i, col in enumerate(header_row):
+                    if str(col).strip() == str(day_of_month):
+                        day_column = i
+                        break
+
+                if day_column is None:
+                    logger.debug(f"Day {day_of_month} not found in header for '{sheet_name}'")
+                    current_date += timedelta(days=1)
+                    continue
+
+                # Check if this day is marked as "Holiday" for most employees
+                holiday_count = 0
+                total_count = 0
+
+                for row in sheet_data[1:min(21, len(sheet_data))]:  # Check first 20 employees
+                    if row and len(row) > day_column:
+                        cell_value = str(row[day_column]).strip().lower()
+                        total_count += 1
+
+                        # Check if it's marked as "Holiday"
+                        if 'holiday' in cell_value:
+                            holiday_count += 1
+
+                # If more than 70% have "Holiday", it's a company holiday
+                if total_count > 0 and (holiday_count / total_count) > 0.7:
+                    company_holidays += 1
+                    logger.info(f"✅ Detected company holiday on {current_date.strftime('%Y-%m-%d %A')} ({holiday_count}/{total_count} employees)")
+                else:
+                    logger.debug(f"Not a company holiday on {current_date.strftime('%Y-%m-%d')}: {holiday_count}/{total_count} marked as holiday")
+
+                current_date += timedelta(days=1)
+
+            logger.info(f"📊 Total company holidays in period: {company_holidays} days")
+            return company_holidays
+
+        except Exception as e:
+            logger.warning(f"Error detecting company holidays: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return 0
+
+    def _calculate_required_hours(self, leave_days: float, company_holidays: int = 0) -> float:
+        """
+        Calculate required hours based on:
+        - Standard work week: 5 days × 8 hours = 40 hours
+        - Individual leave days: reduce by 8 hours per day
+        - Company holidays: reduce by 8 hours per day for everyone
+        """
+        # Start with 5 working days
+        total_working_days = 5
+
+        # Subtract company-wide holidays (affects everyone)
+        total_working_days -= company_holidays
+
+        # Subtract individual leave days
+        total_working_days -= leave_days
+
+        # Can't go below 0
+        if total_working_days <= 0:
             return 0.0
-        return 8.0 * (5 - leave_days)
+
+        return 8.0 * total_working_days
     
     def _get_working_day_leaves_count_realtime(self, employee_name: str, start_date: datetime, end_date: datetime) -> float:
         """Get leave count with FORCE REFRESH for real-time accuracy"""
@@ -390,9 +504,14 @@ class WorkflowManager:
                 leave_days = self._get_working_day_leaves_count_realtime(
                     employee_name, work_week_start, work_week_end
                 )
-                
+
+                # Detect company holidays (cached per monitoring run)
+                if not hasattr(self, '_cached_company_holidays'):
+                    self._cached_company_holidays = self._get_company_holidays_in_period(work_week_start, work_week_end)
+                company_holidays = self._cached_company_holidays
+
                 actual_hours = weekly_data['total_hours']
-                required_hours = self._calculate_required_hours(leave_days)
+                required_hours = self._calculate_required_hours(leave_days, company_holidays)
                 acceptable_hours = max(0, required_hours - Config.HOURS_BUFFER)
                 
                 # Simple check - no AI complications
@@ -527,9 +646,14 @@ class WorkflowManager:
                     leave_days = self._get_working_day_leaves_count_realtime(
                         employee['name'], work_week_start, work_week_end
                     )
-                    
+
+                    # Use cached company holidays
+                    if not hasattr(self, '_cached_company_holidays'):
+                        self._cached_company_holidays = self._get_company_holidays_in_period(work_week_start, work_week_end)
+                    company_holidays = self._cached_company_holidays
+
                     hours = weekly_data['total_hours']
-                    required_hours = self._calculate_required_hours(leave_days)
+                    required_hours = self._calculate_required_hours(leave_days, company_holidays)
                     acceptable_hours = max(0, required_hours - Config.HOURS_BUFFER)
                     
                     # Categorize

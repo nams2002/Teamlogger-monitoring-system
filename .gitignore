@@ -31,6 +31,8 @@ Thumbs.db
 # Secrets
 secrets.toml
 .streamlit/secrets.toml
+credentials/
+google-sheets-service-account.json
 
 # Data files
 *.csv

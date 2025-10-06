@@ -227,7 +227,28 @@ with tab1:
     
     # Feature flags
     st.markdown("### Feature Flags")
-    
+
+    # Debug: Show the actual value being read
+    st.write(f"**DEBUG:** ENABLE_EMAIL_ALERTS = {Config.ENABLE_EMAIL_ALERTS} (type: {type(Config.ENABLE_EMAIL_ALERTS)})")
+
+    # Debug: Show what get_env_var is returning
+    import os
+    import streamlit as st
+    from config.settings import get_env_var
+
+    env_value = os.getenv('ENABLE_EMAIL_ALERTS', 'NOT_SET')
+    try:
+        secrets_value = st.secrets.get('ENABLE_EMAIL_ALERTS', 'NOT_SET')
+    except:
+        secrets_value = 'ERROR_READING_SECRETS'
+
+    get_env_result = get_env_var('ENABLE_EMAIL_ALERTS', 'DEFAULT_FALSE')
+
+    st.write(f"**DEBUG:** OS Environment = '{env_value}'")
+    st.write(f"**DEBUG:** Streamlit Secrets = '{secrets_value}'")
+    st.write(f"**DEBUG:** get_env_var result = '{get_env_result}'")
+    st.write(f"**DEBUG:** get_env_var.lower() == 'true' = {get_env_result.lower() == 'true' if get_env_result else 'N/A'}")
+
     features = {
         "Email Alerts": Config.ENABLE_EMAIL_ALERTS,
         "AI Intelligence": Config.ENABLE_OPENAI_ENHANCEMENT,
@@ -236,7 +257,7 @@ with tab1:
         "Combined Monitoring": Config.ENABLE_COMBINED_MONITORING,
         "Generate PDF Reports": Config.GENERATE_PDF_REPORTS
     }
-    
+
     cols = st.columns(3)
     for idx, (feature, enabled) in enumerate(features.items()):
         with cols[idx % 3]:
@@ -247,7 +268,7 @@ with tab1:
                     st.success(f"✅ {feature}")
             else:
                 if feature == "Email Alerts":
-                    st.warning(f"🔍 {feature} (Preview Mode)")
+                    st.error(f"❌ {feature} (DISABLED)")
                 elif feature == "AI Intelligence":
                     st.error(f"🤖 {feature}")
                 else:

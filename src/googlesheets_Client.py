@@ -17,11 +17,22 @@ class GoogleSheetsLeaveClient:
         self.spreadsheet_id = self._extract_spreadsheet_id(Config.GOOGLE_SHEETS_ID)
         self.gid = self._extract_gid_from_url()
         self._session = requests.Session()
-        
+
+        # GID mapping for different month sheets
+        # Format: "Month YY" -> GID
+        self.sheet_gid_map = {
+            'Sep 25': '1496030997',  # September 2025 sheet GID
+            'Oct 25': None,  # To be configured - get from URL when on Oct 25 tab
+            'Nov 25': None,  # To be configured
+            'Dec 25': None,  # To be configured
+            'Jan 26': None,  # To be configured
+            # Add more months as needed
+        }
+
         logger.info(f"Google Sheets client initialized - Real-Time Mode")
         logger.info(f"Spreadsheet ID: {self.spreadsheet_id}")
         if self.gid:
-            logger.info(f"GID: {self.gid}")
+            logger.info(f"Default GID: {self.gid}")
     
     def _extract_spreadsheet_id(self, id_or_url: str) -> str:
         """Extract spreadsheet ID from either ID or full URL"""
@@ -40,26 +51,82 @@ class GoogleSheetsLeaveClient:
         return None
     
     def _get_sheet_csv_url(self, sheet_name: str) -> Tuple[str, str]:
-        """Generate CSV export URLs with cache busting - FIXED to fetch full range"""
+        """Generate CSV export URLs with ENHANCED range support for any month (30-35+ columns)"""
         timestamp = int(time.time() * 1000000)
         random_id = random.randint(100000, 999999)
 
         encoded_sheet_name = urllib.parse.quote(sheet_name)
 
-        # FIXED: Try different approaches to get full sheet data
-        # Standard GVIZ URL (may truncate)
-        gviz_url = f"https://docs.google.com/spreadsheets/d/{self.spreadsheet_id}/gviz/tq?tqx=out:csv&sheet={encoded_sheet_name}&ts={timestamp}&rnd={random_id}"
+        # ENHANCED: Multiple URL strategies with extended ranges
 
-        # FIXED: Use export URL which should get full sheet data
-        export_url = f"https://docs.google.com/spreadsheets/d/{self.spreadsheet_id}/export?format=csv&gid={self.gid}&ts={timestamp}" if self.gid else None
+        # Strategy 1: GVIZ URL with ultra-wide range (A to AZ = 52 columns)
+        # This covers any month + extra columns for future expansion
+        gviz_url = f"https://docs.google.com/spreadsheets/d/{self.spreadsheet_id}/gviz/tq?tqx=out:csv&sheet={encoded_sheet_name}&range=A:AZ&ts={timestamp}&rnd={random_id}"
 
-        # Alternative: Try published CSV URL if available
+        # Strategy 2: Export URL with extended range
+        export_url = None
+        if self.gid:
+            # Use range parameter to get all columns (A to AZ)
+            export_url = f"https://docs.google.com/spreadsheets/d/{self.spreadsheet_id}/export?format=csv&gid={self.gid}&range=A:AZ&ts={timestamp}"
+
+        # Strategy 3: Published CSV URL (most reliable for full data)
         published_url = None
         if hasattr(Config, 'GOOGLE_SHEETS_PUBLISHED_CSV_URL') and Config.GOOGLE_SHEETS_PUBLISHED_CSV_URL:
-            published_url = f"{Config.GOOGLE_SHEETS_PUBLISHED_CSV_URL}&ts={timestamp}"
+            base_url = Config.GOOGLE_SHEETS_PUBLISHED_CSV_URL
+            # Add range parameter if not already present
+            if 'range=' not in base_url:
+                separator = '&' if '?' in base_url else '?'
+                published_url = f"{base_url}{separator}range=A:AZ&ts={timestamp}"
+            else:
+                published_url = f"{base_url}&ts={timestamp}"
 
         return gviz_url, export_url, published_url
-    
+
+    def _detect_sheet_columns(self, data: List[List[str]]) -> int:
+        """Detect actual number of meaningful columns in the sheet"""
+        if not data or len(data) < 2:
+            return 0
+
+        header_row = data[0]
+        max_meaningful_cols = 0
+
+        # Method 1: Count non-empty headers
+        for i, header in enumerate(header_row):
+            if header and str(header).strip():
+                max_meaningful_cols = i + 1
+
+        # Method 2: Check data rows for non-empty cells
+        for row in data[1:10]:  # Check first 10 data rows
+            for i, cell in enumerate(row):
+                if cell and str(cell).strip():
+                    max_meaningful_cols = max(max_meaningful_cols, i + 1)
+
+        logger.info(f"Detected {max_meaningful_cols} meaningful columns in sheet")
+        return max_meaningful_cols
+
+    def _validate_month_columns(self, data: List[List[str]], expected_days: int = None) -> bool:
+        """Validate that we have all expected columns for the month"""
+        if not data:
+            return False
+
+        actual_cols = self._detect_sheet_columns(data)
+
+        # For leave tracking, we expect: Name + Days (1-30/31) = 31-32 columns minimum
+        min_expected = 31  # Name + 30 days minimum
+        max_expected = 35  # Name + 31 days + some buffer
+
+        if expected_days:
+            min_expected = expected_days + 1  # +1 for Name column
+
+        is_valid = actual_cols >= min_expected
+
+        if is_valid:
+            logger.info(f"✅ Column validation passed: {actual_cols} columns (expected ≥{min_expected})")
+        else:
+            logger.warning(f"❌ Column validation failed: {actual_cols} columns (expected ≥{min_expected})")
+
+        return is_valid
+
     def _fetch_sheet_data(self, sheet_name: str, force_refresh: bool = True) -> List[List[str]]:
         """Fetch sheet data - try multiple approaches"""
         logger.info(f"Fetching real-time data for sheet '{sheet_name}'")
@@ -83,65 +150,68 @@ class GoogleSheetsLeaveClient:
         self._session.close()
         self._session = requests.Session()
         
-        # FIXED: Try published CSV URL first (gets ALL columns - up to 35 for safety)
+        # ENHANCED: Try multiple strategies with validation for maximum column coverage
+
+        # Strategy 1: Published CSV URL with ultra-wide range (most reliable)
         if hasattr(Config, 'GOOGLE_SHEETS_PUBLISHED_CSV_URL') and Config.GOOGLE_SHEETS_PUBLISHED_CSV_URL:
-            try:
-                # Force fetch ALL columns by adding range parameter
-                base_url = Config.GOOGLE_SHEETS_PUBLISHED_CSV_URL
-                # Add range to get columns A through AI (35 columns) to ensure we get all month days
-                published_url = f"{base_url}&range=A:AI&ts={int(time.time() * 1000)}"
-                logger.debug(f"Trying published CSV URL with full range: {published_url}")
+            for range_spec in ['A:BZ', 'A:AZ', 'A:AI']:  # Try progressively smaller ranges
+                try:
+                    base_url = Config.GOOGLE_SHEETS_PUBLISHED_CSV_URL
+                    if 'range=' not in base_url:
+                        separator = '&' if '?' in base_url else '?'
+                        test_url = f"{base_url}{separator}range={range_spec}&ts={int(time.time() * 1000)}"
+                    else:
+                        test_url = f"{base_url}&ts={int(time.time() * 1000)}"
 
-                response = self._session.get(published_url, timeout=30, headers=headers)
-                if response.status_code == 200:
-                    content = response.text
-                    csv_data = StringIO(content)
-                    reader = csv.reader(csv_data)
-                    data = list(reader)
+                    logger.debug(f"Trying published CSV with range {range_spec}: {test_url[:100]}...")
 
-                    if data and len(data) > 1:
-                        logger.info(f"Successfully fetched {len(data)} rows with {len(data[0])} columns using published CSV with range")
-                        return data
-            except Exception as e:
-                logger.warning(f"Published CSV with range failed: {e}")
+                    response = self._session.get(test_url, timeout=30, headers=headers)
+                    if response.status_code == 200:
+                        content = response.text
+                        csv_data = StringIO(content)
+                        reader = csv.reader(csv_data)
+                        data = list(reader)
 
-        # Fallback: Try published URL without range
-        if hasattr(Config, 'GOOGLE_SHEETS_PUBLISHED_CSV_URL') and Config.GOOGLE_SHEETS_PUBLISHED_CSV_URL:
-            try:
-                published_url = f"{Config.GOOGLE_SHEETS_PUBLISHED_CSV_URL}&ts={int(time.time() * 1000)}"
-                logger.debug(f"Trying published CSV URL (fallback): {published_url}")
+                        if data and len(data) > 1:
+                            # Validate we got enough columns
+                            if self._validate_month_columns(data):
+                                logger.info(f"✅ SUCCESS: Published CSV with {range_spec} - {len(data)} rows, {len(data[0])} columns")
+                                return data
+                            else:
+                                logger.warning(f"⚠️ Published CSV {range_spec} insufficient columns, trying next range...")
+                                continue
+                except Exception as e:
+                    logger.warning(f"Published CSV {range_spec} failed: {e}")
+                    continue
 
-                response = self._session.get(published_url, timeout=30, headers=headers)
-                if response.status_code == 200:
-                    content = response.text
-                    csv_data = StringIO(content)
-                    reader = csv.reader(csv_data)
-                    data = list(reader)
-
-                    if data and len(data) > 1:
-                        logger.info(f"Successfully fetched {len(data)} rows with {len(data[0])} columns using published CSV (fallback)")
-                        return data
-            except Exception as e:
-                logger.warning(f"Published CSV fallback failed: {e}")
-
-        # Try with GID if available (fallback)
+        # Strategy 2: GID-based export with range (fallback)
         if self.gid:
-            try:
-                url = f"https://docs.google.com/spreadsheets/d/{self.spreadsheet_id}/export?format=csv&gid={self.gid}"
-                logger.debug(f"Trying GID-based URL: {url}")
+            for range_spec in ['A:BZ', 'A:AZ', '']:  # Try with and without range
+                try:
+                    if range_spec:
+                        url = f"https://docs.google.com/spreadsheets/d/{self.spreadsheet_id}/export?format=csv&gid={self.gid}&range={range_spec}"
+                    else:
+                        url = f"https://docs.google.com/spreadsheets/d/{self.spreadsheet_id}/export?format=csv&gid={self.gid}"
 
-                response = self._session.get(url, timeout=30, headers=headers)
-                if response.status_code == 200:
-                    content = response.text
-                    csv_data = StringIO(content)
-                    reader = csv.reader(csv_data)
-                    data = list(reader)
+                    logger.debug(f"Trying GID export {range_spec or 'no-range'}: {url[:100]}...")
 
-                    if data:
-                        logger.info(f"Successfully fetched {len(data)} rows using GID")
-                        return data
-            except Exception as e:
-                logger.warning(f"GID fetch failed: {e}")
+                    response = self._session.get(url, timeout=30, headers=headers)
+                    if response.status_code == 200:
+                        content = response.text
+                        csv_data = StringIO(content)
+                        reader = csv.reader(csv_data)
+                        data = list(reader)
+
+                        if data and len(data) > 1:
+                            if self._validate_month_columns(data):
+                                logger.info(f"✅ SUCCESS: GID export {range_spec or 'no-range'} - {len(data)} rows, {len(data[0])} columns")
+                                return data
+                            else:
+                                logger.warning(f"⚠️ GID export {range_spec or 'no-range'} insufficient columns")
+                                continue
+                except Exception as e:
+                    logger.warning(f"GID export {range_spec or 'no-range'} failed: {e}")
+                    continue
         
         # Try with sheet name variations
         for sheet_var in sheet_variations:

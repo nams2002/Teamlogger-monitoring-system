@@ -289,12 +289,21 @@ col1, col2, col3 = st.columns(3)
 
 with col1:
     if st.button("🔍 Preview Hours Alerts", use_container_width=True, type="primary",
-                help="See who would receive hours alerts"):
+                help="SAFE: Shows who would receive alerts - NEVER sends emails"):
         preview_hours_alerts()
 
 with col2:
-    if st.button("📧 Run Hours Monitoring", use_container_width=True, type="secondary",
-                help="Run hours monitoring workflow and send emails"):
+    # Show different button text based on email settings
+    if Config.ENABLE_EMAIL_ALERTS:
+        button_text = "📧 Run Hours Monitoring"
+        button_help = "LIVE MODE: Will actually send emails to employees and managers"
+        button_type = "secondary"
+    else:
+        button_text = "🔍 Run Hours Monitoring"
+        button_help = "PREVIEW MODE: Will show results but NOT send emails"
+        button_type = "primary"
+
+    if st.button(button_text, use_container_width=True, type=button_type, help=button_help):
         if st.session_state.get('confirm_run', False):
             results = run_monitoring_workflow()
             if results:
@@ -302,7 +311,10 @@ with col2:
                 display_monitoring_results(results)
             st.session_state.confirm_run = False
         else:
-            st.warning("⚠️ This will send email alerts. Click again to confirm.")
+            if Config.ENABLE_EMAIL_ALERTS:
+                st.warning("⚠️ **LIVE MODE**: This will send actual emails to employees and managers. Click again to confirm.")
+            else:
+                st.info("🔍 **PREVIEW MODE**: This will show results but NOT send emails. Click again to confirm.")
             st.session_state.confirm_run = True
 
 with col3:
