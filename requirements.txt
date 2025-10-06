@@ -28,6 +28,12 @@ colorlog==6.8.0
 urllib3==2.1.0
 certifi==2023.11.17
 
+# Google Sheets API (for holiday detection and multi-month support)
+google-auth==2.41.1
+google-auth-oauthlib==1.2.2
+google-auth-httplib2==0.2.0
+google-api-python-client==2.184.0
+
 # Utilities
 click==8.1.7
 validators==0.22.0

@@ -114,7 +114,36 @@ def preview_hours_alerts():
 
     st.subheader("⏰ Hours-Based Alerts Preview")
 
+    # Show API status and holiday detection info
+    work_week_start, work_week_end = workflow._get_monitoring_period()
+
+    # Display monitoring period
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.info(f"📅 **Period:** {work_week_start.strftime('%b %d')} - {work_week_end.strftime('%b %d, %Y')}")
+
+    with col2:
+        # Check if using API
+        using_api = hasattr(workflow.google_sheets, 'get_sheet_data')
+        if using_api:
+            st.success("✅ **Using Google Sheets API**")
+        else:
+            st.warning("⚠️ **Using CSV Export**")
+
+    with col3:
+        # Detect and display company holidays
+        company_holidays = workflow._get_company_holidays_in_period(work_week_start, work_week_end)
+        if company_holidays > 0:
+            st.info(f"🏖️ **Company Holidays:** {company_holidays} day(s)")
+            st.caption(f"Required hours adjusted: {40 - (company_holidays * 8)}h (instead of 40h)")
+        else:
+            st.info(f"📊 **Company Holidays:** None detected")
+
     with st.spinner("🔍 Analyzing employee hours with real-time data..."):
+        # Clear cache to force fresh detection
+        if hasattr(workflow, '_cached_company_holidays'):
+            delattr(workflow, '_cached_company_holidays')
+
         employees_needing_alerts = workflow.get_employees_needing_real_alerts()
 
     if not employees_needing_alerts:

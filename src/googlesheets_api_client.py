@@ -33,32 +33,51 @@ class GoogleSheetsAPIClient:
         try:
             from google.oauth2 import service_account
             from googleapiclient.discovery import build
-            
-            # Get credentials file path
-            creds_file = getattr(Config, 'GOOGLE_SHEETS_CREDENTIALS_FILE', None)
-            
-            if not creds_file:
-                logger.warning("GOOGLE_SHEETS_CREDENTIALS_FILE not configured")
-                return
-            
-            if not os.path.exists(creds_file):
-                logger.warning(f"Credentials file not found: {creds_file}")
-                return
-            
-            # Load credentials
+            import streamlit as st
+
             SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
-            credentials = service_account.Credentials.from_service_account_file(
-                creds_file, scopes=SCOPES
-            )
-            
+            credentials = None
+
+            # Try to load from Streamlit secrets first (for Cloud deployment)
+            try:
+                if hasattr(st, 'secrets') and 'GOOGLE_SHEETS_CREDENTIALS' in st.secrets:
+                    logger.info("Loading credentials from Streamlit secrets...")
+                    creds_dict = dict(st.secrets['GOOGLE_SHEETS_CREDENTIALS'])
+                    credentials = service_account.Credentials.from_service_account_info(
+                        creds_dict, scopes=SCOPES
+                    )
+                    logger.info("✅ Loaded credentials from Streamlit secrets")
+            except Exception as e:
+                logger.debug(f"Could not load from Streamlit secrets: {e}")
+
+            # Fallback to file-based credentials (for local development)
+            if not credentials:
+                creds_file = getattr(Config, 'GOOGLE_SHEETS_CREDENTIALS_FILE', None)
+
+                if not creds_file:
+                    logger.warning("GOOGLE_SHEETS_CREDENTIALS_FILE not configured")
+                    return
+
+                if not os.path.exists(creds_file):
+                    logger.warning(f"Credentials file not found: {creds_file}")
+                    return
+
+                logger.info(f"Loading credentials from file: {creds_file}")
+                credentials = service_account.Credentials.from_service_account_file(
+                    creds_file, scopes=SCOPES
+                )
+                logger.info("✅ Loaded credentials from file")
+
             # Build the service
             self.service = build('sheets', 'v4', credentials=credentials)
             logger.info("✅ Google Sheets API initialized successfully")
-            
+
         except ImportError:
             logger.error("Google Sheets API libraries not installed. Run: pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client")
         except Exception as e:
             logger.error(f"Failed to initialize Google Sheets API: {e}")
+            import traceback
+            traceback.print_exc()
     
     def get_sheet_data(self, sheet_name: str) -> List[List[str]]:
         """
