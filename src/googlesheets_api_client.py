@@ -125,9 +125,11 @@ class GoogleSheetsAPIClient:
             logger.error(f"Error fetching sheet '{sheet_name}': {e}")
             return []
 
-    def _fetch_sheet_data(self, sheet_name: str) -> List[List[str]]:
+    def _fetch_sheet_data(self, sheet_name: str, force_refresh: bool = False) -> List[List[str]]:
         """Alias for get_sheet_data for backward compatibility"""
-        return self.get_sheet_data(sheet_name)
+        # If force_refresh is True, bypass cache
+        use_cache = not force_refresh
+        return self.get_sheet_data(sheet_name, use_cache=use_cache)
 
     def clear_cache(self):
         """Clear the sheet data cache"""
