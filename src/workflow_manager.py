@@ -471,12 +471,17 @@ class WorkflowManager:
                     active_employees.append(employee)
                     logger.debug(f"✅ {employee_name} - Found in Google Sheets (active)")
                 else:
-                    logger.info(f"❌ {employee_name} - Not found in Google Sheets (likely left organization)")
+                    # If not found, still include them unless they're in the known inactive list
+                    # This handles name mismatches and ensures we don't miss active employees
+                    active_employees.append(employee)
+                    logger.info(f"⚠️ {employee_name} - Not found in sheet but included (name mismatch or new employee)")
 
             except Exception as e:
                 logger.warning(f"Error checking {employee_name} in Google Sheets: {str(e)}")
-                # If there's an error, exclude the employee to be safe (don't include potentially inactive employees)
-                logger.info(f"❌ {employee_name} - Excluded due to error (safer to exclude)")
+                # If there's an error (e.g., rate limit), INCLUDE the employee to avoid false negatives
+                # Better to send an alert to an active employee than miss someone who needs it
+                active_employees.append(employee)
+                logger.info(f"⚠️ {employee_name} - Included despite error (safer to include)")
 
         logger.info(f"Filtered to {len(active_employees)} active employees (removed {len(employees) - len(active_employees)} who left)")
         return active_employees
