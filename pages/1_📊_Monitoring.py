@@ -124,7 +124,7 @@ def preview_hours_alerts():
 
     with col2:
         # Check if using API
-        using_api = hasattr(workflow.google_sheets, 'get_sheet_data')
+        using_api = hasattr(workflow.google_sheets, 'is_available') and workflow.google_sheets.is_available()
         if using_api:
             st.success("✅ **Using Google Sheets API**")
         else:

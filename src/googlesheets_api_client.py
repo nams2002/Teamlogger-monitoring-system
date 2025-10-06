@@ -17,6 +17,7 @@ class GoogleSheetsAPIClient:
     def __init__(self):
         self.spreadsheet_id = self._extract_spreadsheet_id(Config.GOOGLE_SHEETS_ID)
         self.service = None
+        self._sheet_cache = {}  # Cache to avoid hitting rate limits
         self._initialize_api()
         
     def _extract_spreadsheet_id(self, id_or_url: str) -> str:
@@ -79,42 +80,63 @@ class GoogleSheetsAPIClient:
             import traceback
             traceback.print_exc()
     
-    def get_sheet_data(self, sheet_name: str) -> List[List[str]]:
+    def get_sheet_data(self, sheet_name: str, use_cache: bool = True) -> List[List[str]]:
         """
-        Fetch data from a specific sheet tab by name
-        
+        Fetch data from a specific sheet tab by name (with caching to avoid rate limits)
+
         Args:
             sheet_name: Name of the sheet tab (e.g., "Oct 25", "Sep 25")
-            
+            use_cache: Whether to use cached data (default: True)
+
         Returns:
             List of rows, where each row is a list of cell values
         """
         if not self.service:
             logger.error("Google Sheets API not initialized")
             return []
-        
+
+        # Check cache first
+        if use_cache and sheet_name in self._sheet_cache:
+            logger.debug(f"📦 Using cached data for '{sheet_name}'")
+            return self._sheet_cache[sheet_name]
+
         try:
             # Request data from the sheet
             # Use A:BZ range to get all columns (up to 78 columns)
             range_name = f"'{sheet_name}'!A:BZ"
-            
+
             result = self.service.spreadsheets().values().get(
                 spreadsheetId=self.spreadsheet_id,
                 range=range_name
             ).execute()
-            
+
             values = result.get('values', [])
-            
+
             if not values:
                 logger.warning(f"No data found in sheet '{sheet_name}'")
                 return []
-            
-            logger.info(f"✅ Fetched {len(values)} rows from '{sheet_name}' (API)")
+
+            # Cache the result
+            self._sheet_cache[sheet_name] = values
+            logger.info(f"✅ Fetched {len(values)} rows from '{sheet_name}' (API) - cached")
             return values
-            
+
         except Exception as e:
             logger.error(f"Error fetching sheet '{sheet_name}': {e}")
             return []
+
+    def _fetch_sheet_data(self, sheet_name: str) -> List[List[str]]:
+        """Alias for get_sheet_data for backward compatibility"""
+        return self.get_sheet_data(sheet_name)
+
+    def clear_cache(self):
+        """Clear the sheet data cache"""
+        self._sheet_cache = {}
+        logger.info("🗑️ Sheet cache cleared")
+
+    def is_available(self) -> bool:
+        """Check if the Google Sheets API is available and initialized"""
+        return self.service is not None
     
     def get_employee_leaves(self, employee_name: str, start_date: datetime,
                           end_date: datetime, force_refresh: bool = True) -> List[Dict]:
