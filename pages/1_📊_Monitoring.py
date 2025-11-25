@@ -108,6 +108,9 @@ def display_monitoring_results(results):
     if results.get('errors', 0) > 0:
         st.warning(f"⚠️ {results['errors']} errors occurred during processing")
 
+    if results.get('manual_skips', 0) > 0:
+        st.info(f"✋ Manual overrides skipped {results['manual_skips']} alert(s) in this run.")
+
 def preview_hours_alerts():
     """Preview hours-based alerts only"""
     workflow = st.session_state.workflow_manager
@@ -159,8 +162,11 @@ def preview_hours_alerts():
         tab1, tab2, tab3 = st.tabs(["📋 Employee List", "📊 Visualizations", "📧 Email Preview"])
         
         with tab1:
-            # Display employee data
+            # Display employee data with manual email controls
             alert_data = []
+            if 'hours_email_selection' not in st.session_state:
+                st.session_state['hours_email_selection'] = {}
+
             for item in employees_needing_alerts:
                 employee = item['employee']
                 weekly_data = item['weekly_data']
@@ -169,27 +175,59 @@ def preview_hours_alerts():
                 manager_name = get_manager_name(employee['name'])
                 manager_email = get_manager_email(employee['name'])
                 
+                send_default = st.session_state['hours_email_selection'].get(employee['name'].lower(), True)
+                
                 alert_data.append({
+                    'Send Email': send_default,
                     'Name': employee['name'],
                     'Email': employee['email'],
                     'Manager': manager_name if manager_name else 'Not Assigned',
                     'Manager Email': manager_email if manager_email else 'Not Available',
-                    'Hours Worked': f"{weekly_data['total_hours']:.2f}",
-                    'Required Hours': f"{item['required_hours']:.1f}",
-                    'Acceptable Hours': f"{item['acceptable_hours']:.1f}",
-                    'Shortfall (hours)': f"{item['shortfall']:.2f}",
+                    'Hours Worked': round(weekly_data['total_hours'], 2),
+                    'Required Hours': round(item['required_hours'], 1),
+                    'Acceptable Hours': round(item['acceptable_hours'], 1),
+                    'Shortfall (hours)': round(item['shortfall'], 2),
                     'Leave Days': Config.format_leave_days(item['leave_days']),
                     'Working Days': item['working_days'],
                     'Status': '🚨 Alert Required'
                 })
             
             df = pd.DataFrame(alert_data)
+            checkbox_column = st.data_editor(
+                df[['Send Email', 'Name', 'Email', 'Manager', 'Manager Email', 'Hours Worked',
+                    'Required Hours', 'Acceptable Hours', 'Shortfall (hours)', 'Leave Days',
+                    'Working Days', 'Status']],
+                hide_index=True,
+                use_container_width=True,
+                key="hours_alert_data_editor",
+                column_config={
+                    "Send Email": st.column_config.CheckboxColumn(
+                        "Send Email",
+                        help="Untick to skip sending the hours alert email for this employee.",
+                        default=True
+                    ),
+                    "Hours Worked": st.column_config.NumberColumn(format="%.2f h"),
+                    "Required Hours": st.column_config.NumberColumn(format="%.1f h"),
+                    "Acceptable Hours": st.column_config.NumberColumn(format="%.1f h"),
+                    "Shortfall (hours)": st.column_config.NumberColumn(format="%.2f h"),
+                    "Working Days": st.column_config.NumberColumn(format="%d days")
+                }
+            )
+
+            st.session_state['hours_email_selection'] = {
+                row['Name'].lower(): bool(row['Send Email'])
+                for _, row in checkbox_column.iterrows()
+            }
+            workflow.set_manual_email_overrides(st.session_state['hours_email_selection'])
+
+            selected_count = sum(st.session_state['hours_email_selection'].values())
+            st.info(f"✉️ {selected_count} of {len(checkbox_column)} employees are selected to receive the hours alert email.")
             
             # Add filters
             col1, col2, col3 = st.columns(3)
             with col1:
                 manager_filter = st.multiselect("Filter by Manager",
-                                               options=[m for m in df['Manager'].unique() if m != 'Not Assigned'],
+                                               options=[m for m in checkbox_column['Manager'].unique() if m != 'Not Assigned'],
                                                default=[],
                                                key="hours_manager_filter")
             
@@ -205,17 +243,17 @@ def preview_hours_alerts():
                 search_term = st.text_input("Search employee", "", key="hours_search")
             
             # Apply filters
-            filtered_df = df.copy()
+            filtered_df = checkbox_column.copy()
             if manager_filter:
                 filtered_df = filtered_df[filtered_df['Manager'].isin(manager_filter)]
             if min_shortfall > 0:
-                filtered_df = filtered_df[filtered_df['Shortfall (hours)'].astype(float) >= min_shortfall]
+                filtered_df = filtered_df[filtered_df['Shortfall (hours)'] >= min_shortfall]
             if search_term:
                 filtered_df = filtered_df[filtered_df['Name'].str.contains(search_term, case=False, na=False)]
             
             # Display filtered data
             st.dataframe(
-                filtered_df,
+                filtered_df.drop(columns=['Send Email']),
                 use_container_width=True,
                 hide_index=True
             )

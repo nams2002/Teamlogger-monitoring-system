@@ -33,6 +33,7 @@ class WorkflowManager:
 
         self.email_service = EmailService()
         self.activity_analyzer = ActivityAnalyzer(self.teamlogger)
+        self.manual_email_overrides: Dict[str, bool] = {}
         
         # 5-day work system configuration
         self.min_hours = Config.MINIMUM_HOURS_PER_WEEK  # 40 hours
@@ -96,6 +97,13 @@ class WorkflowManager:
         
         return False
     
+    def set_manual_email_overrides(self, overrides: Dict[str, bool]) -> None:
+        """Update manual email overrides collected from the UI"""
+        normalized = {name.lower(): bool(value) for name, value in overrides.items()}
+        self.manual_email_overrides = normalized
+        skipped = sum(1 for value in normalized.values() if not value)
+        logger.info(f"Manual email overrides updated: {skipped} employees currently set to skip alerts.")
+    
     def run_workflow(self):
         """Main workflow execution - OPTIMIZED for speed and accuracy"""
         start_time = datetime.now()
@@ -127,6 +135,7 @@ class WorkflowManager:
         employees_meeting_hours = 0
         excluded_count = 0
         errors_count = 0
+        manual_override_skips = 0
         
         # Batch process employees for speed
         for employee in employees:
@@ -149,6 +158,8 @@ class WorkflowManager:
                     employees_on_leave += 1
                 elif result['status'] == 'hours_met':
                     employees_meeting_hours += 1
+                elif result['status'] == 'manually_skipped':
+                    manual_override_skips += 1
                     
             except Exception as e:
                 errors_count += 1
@@ -168,6 +179,7 @@ class WorkflowManager:
         logger.info(f"Employees on full leave: {employees_on_leave}")
         logger.info(f"Employees meeting hours: {employees_meeting_hours}")
         logger.info(f"Processing errors: {errors_count}")
+        logger.info(f"Manual override skips: {manual_override_skips}")
         logger.info("="*60)
         
         return {
@@ -177,6 +189,7 @@ class WorkflowManager:
             'alerts_sent': alerts_sent,
             'on_leave': employees_on_leave,
             'hours_met': employees_meeting_hours,
+            'manual_skips': manual_override_skips,
             'errors': errors_count,
             'execution_time': str(execution_time)
         }
@@ -186,6 +199,11 @@ class WorkflowManager:
         employee_id = employee.get('id')
         employee_email = employee.get('email')
         employee_name = employee.get('name', 'Employee')
+
+        manual_overrides = getattr(self, 'manual_email_overrides', {})
+        if manual_overrides.get(employee_name.lower()) is False:
+            logger.info(f"🚫 Manual override: skipping alert workflow for {employee_name}")
+            return {'status': 'manually_skipped', 'employee': employee_name}
         
         # Get hours worked (Mon-Sun)
         weekly_data = self.teamlogger.get_weekly_summary(employee_id, work_week_start, work_week_end)
