@@ -24,6 +24,8 @@ if 'workflow_manager' not in st.session_state:
     st.session_state.workflow_manager = WorkflowManager()
 if 'monitoring_results' not in st.session_state:
     st.session_state.monitoring_results = None
+if 'show_hours_preview' not in st.session_state:
+    st.session_state.show_hours_preview = False
 
 def run_monitoring_workflow(force=False):
     """Run the monitoring workflow - OPTIMIZED"""
@@ -116,6 +118,9 @@ def preview_hours_alerts():
     workflow = st.session_state.workflow_manager
 
     st.subheader("⏰ Hours-Based Alerts Preview")
+    if st.button("Close Preview", key="close_hours_preview", width="content"):
+        st.session_state.show_hours_preview = False
+        st.rerun()
 
     # Show API status and holiday detection info
     work_week_start, work_week_end = workflow._get_monitoring_period()
@@ -198,7 +203,7 @@ def preview_hours_alerts():
                     'Required Hours', 'Acceptable Hours', 'Shortfall (hours)', 'Leave Days',
                     'Working Days', 'Status']],
                 hide_index=True,
-                use_container_width=True,
+                width="stretch",
                 key="hours_alert_data_editor",
                 column_config={
                     "Send Email": st.column_config.CheckboxColumn(
@@ -254,7 +259,7 @@ def preview_hours_alerts():
             # Display filtered data
             st.dataframe(
                 filtered_df.drop(columns=['Send Email']),
-                use_container_width=True,
+                width="stretch",
                 hide_index=True
             )
             
@@ -279,7 +284,7 @@ def preview_hours_alerts():
                     nbins=20,
                     title='Shortfall Distribution'
                 )
-                st.plotly_chart(fig1, use_container_width=True)
+                st.plotly_chart(fig1, width="stretch")
                 
                 # Manager breakdown
                 manager_counts = df['Manager'].value_counts()
@@ -289,7 +294,7 @@ def preview_hours_alerts():
                     labels={'x': 'Manager', 'y': 'Alert Count'},
                     title='Alerts by Manager'
                 )
-                st.plotly_chart(fig2, use_container_width=True)
+                st.plotly_chart(fig2, width="stretch")
         
         with tab3:
             # Email preview
@@ -355,9 +360,9 @@ st.subheader("🎯 Hours Monitoring Actions")
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    if st.button("🔍 Preview Hours Alerts", use_container_width=True, type="primary",
+    if st.button("🔍 Preview Hours Alerts", width="stretch", type="primary",
                 help="SAFE: Shows who would receive alerts - NEVER sends emails"):
-        preview_hours_alerts()
+        st.session_state.show_hours_preview = True
 
 with col2:
     # Show different button text based on email settings
@@ -370,7 +375,7 @@ with col2:
         button_help = "PREVIEW MODE: Will show results but NOT send emails"
         button_type = "primary"
 
-    if st.button(button_text, use_container_width=True, type=button_type, help=button_help):
+    if st.button(button_text, width="stretch", type=button_type, help=button_help):
         if st.session_state.get('confirm_run', False):
             results = run_monitoring_workflow()
             if results:
@@ -385,12 +390,17 @@ with col2:
             st.session_state.confirm_run = True
 
 with col3:
-    if st.button("💪 Force Run", use_container_width=True,
+    if st.button("💪 Force Run", width="stretch",
                 help="Force run regardless of the day"):
         results = run_monitoring_workflow(force=True)
         if results:
             st.session_state.monitoring_results = results
             display_monitoring_results(results)
+
+# Show preview if active
+if st.session_state.get('show_hours_preview'):
+    st.markdown("---")
+    preview_hours_alerts()
 
 # Display previous results
 if st.session_state.monitoring_results and not st.session_state.get('confirm_run', False):

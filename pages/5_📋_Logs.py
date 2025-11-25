@@ -249,7 +249,7 @@ with tab2:
     
     st.dataframe(
         filtered_alerts.sort_values('Date', ascending=False),
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         column_config=column_config
     )
@@ -297,7 +297,7 @@ with tab3:
                     'CRITICAL': '#721c24'
                 }
             )
-            st.plotly_chart(fig_pie, use_container_width=True)
+            st.plotly_chart(fig_pie, width="stretch")
         
         with col2:
             # Hourly distribution
@@ -310,7 +310,7 @@ with tab3:
                 title="Logs by Hour of Day",
                 labels={'x': 'Hour', 'y': 'Count'}
             )
-            st.plotly_chart(fig_bar, use_container_width=True)
+            st.plotly_chart(fig_bar, width="stretch")
         
         # Time series of logs
         st.markdown("### Log Activity Over Time")
@@ -333,7 +333,7 @@ with tab3:
                 'CRITICAL': '#721c24'
             }
         )
-        st.plotly_chart(fig_line, use_container_width=True)
+        st.plotly_chart(fig_line, width="stretch")
         
         # Error analysis
         errors_df = logs_df[logs_df['level'].isin(['ERROR', 'CRITICAL'])]
@@ -371,7 +371,7 @@ with tab3:
             color='Count',
             color_continuous_scale='Viridis'
         )
-        st.plotly_chart(fig_patterns, use_container_width=True)
+        st.plotly_chart(fig_patterns, width="stretch")
     
     else:
         st.warning("No logs available for analytics")

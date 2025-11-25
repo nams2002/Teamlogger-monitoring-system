@@ -230,20 +230,20 @@ def display_dashboard():
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        if st.button("🔍 AI Preview Mode", use_container_width=True, help="See who would get alerts with AI analysis"):
+        if st.button("🔍 AI Preview Mode", width="stretch", help="See who would get alerts with AI analysis"):
             with st.spinner("Generating AI-enhanced preview..."):
                 preview_alerts()
     
     with col2:
-        if st.button("📊 Generate AI Report", use_container_width=True, help="Generate work week statistics with AI insights"):
+        if st.button("📊 Generate AI Report", width="stretch", help="Generate work week statistics with AI insights"):
             generate_work_week_report()
     
     with col3:
-        if st.button("🧪 Test AI Components", use_container_width=True, help="Test all system components including AI"):
+        if st.button("🧪 Test AI Components", width="stretch", help="Test all system components including AI"):
             test_system_components()
     
     with col4:
-        if st.button("🔄 Refresh Dashboard", use_container_width=True):
+        if st.button("🔄 Refresh Dashboard", width="stretch"):
             st.rerun()
     
     # Work Week Summary
@@ -298,7 +298,7 @@ def preview_alerts():
                 })
             
             df = pd.DataFrame(alert_data)
-            st.dataframe(df, use_container_width=True, hide_index=True)
+            st.dataframe(df, width="stretch", hide_index=True)
             
             # Download button
             csv = df.to_csv(index=False)
@@ -361,7 +361,7 @@ def generate_work_week_report():
                 if hour_dist_data:
                     df_hours = pd.DataFrame(hour_dist_data)
                     fig = px.pie(df_hours, values='Count', names='Range', title='Employee Hour Distribution')
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, width="stretch")
     
     except Exception as e:
         st.error(f"Error generating report: {str(e)}")

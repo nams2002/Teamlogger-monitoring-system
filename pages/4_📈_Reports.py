@@ -110,7 +110,7 @@ with col1:
 with col2:
     end_date = st.date_input("End Date", datetime.now())
 with col3:
-    if st.button("🔄 Refresh Data", use_container_width=True):
+    if st.button("🔄 Refresh Data", width="stretch"):
         st.rerun()
 
 # Generate data
@@ -169,7 +169,7 @@ with tab1:
             yaxis_title="Hours",
             hovermode='x'
         )
-        st.plotly_chart(fig1, use_container_width=True)
+        st.plotly_chart(fig1, width="stretch")
         
         # Compliance trend
         fig2 = go.Figure()
@@ -185,7 +185,7 @@ with tab1:
             yaxis_title="Compliance %",
             yaxis_range=[0, 100]
         )
-        st.plotly_chart(fig2, use_container_width=True)
+        st.plotly_chart(fig2, width="stretch")
         
         # Alert trend
         col1, col2 = st.columns(2)
@@ -193,14 +193,14 @@ with tab1:
             fig3 = px.line(alert_enabled, x='Week', y='Alert Sent',
                           title='Weekly Alerts Sent (Excluding Protected)',
                           markers=True)
-            st.plotly_chart(fig3, use_container_width=True)
+            st.plotly_chart(fig3, width="stretch")
         
         with col2:
             # Leave days distribution
             leave_dist = df.groupby('Leave Days').size().reset_index(name='Count')
             fig4 = px.pie(leave_dist, values='Count', names='Leave Days',
                          title='Leave Days Distribution')
-            st.plotly_chart(fig4, use_container_width=True)
+            st.plotly_chart(fig4, width="stretch")
     
     # Show exclusion impact
     st.markdown("### 📊 Exclusion Impact Analysis")
@@ -235,7 +235,7 @@ with tab2:
         dept_summary['Compliance Rate'] = (dept_summary['Compliance Rate'] * 100).round(1)
         
         # Display table
-        st.dataframe(dept_summary, use_container_width=True)
+        st.dataframe(dept_summary, width="stretch")
         
         # Department comparison chart
         fig = px.bar(dept_summary.reset_index(), 
@@ -247,7 +247,7 @@ with tab2:
                      labels={'Avg Hours': 'Average Hours/Week'})
         fig.add_hline(y=37, line_dash="dash", line_color="orange", annotation_text="Acceptable (37h)")
         fig.add_hline(y=40, line_dash="dash", line_color="green", annotation_text="Required (40h)")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
         
         # Box plot for hours distribution
         fig_box = px.box(alert_enabled_df, x='Department', y='Hours',
@@ -257,7 +257,7 @@ with tab2:
                          annotation_text="Acceptable threshold")
         fig_box.add_hline(y=40, line_dash="dash", line_color="green",
                          annotation_text="Required threshold")
-        st.plotly_chart(fig_box, use_container_width=True)
+        st.plotly_chart(fig_box, width="stretch")
     else:
         st.warning("No alert-enabled employees found for department analysis")
 
@@ -293,7 +293,7 @@ with tab3:
                      markers=True)
         fig.add_hline(y=37, line_dash="dash", line_color="orange", annotation_text="Acceptable (37h)")
         fig.add_hline(y=40, line_dash="dash", line_color="green", annotation_text="Required (40h)")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
         
         # Performance summary
         emp_summary = emp_df.groupby(['Employee', 'Is Excluded']).agg({
@@ -313,7 +313,7 @@ with tab3:
             lambda x: '🚫 Excluded' if x else '✅ Alert-Enabled'
         )
         
-        st.dataframe(emp_summary.drop('Is Excluded', axis=1), use_container_width=True, hide_index=True)
+        st.dataframe(emp_summary.drop('Is Excluded', axis=1), width="stretch", hide_index=True)
         
         # Heatmap of weekly hours
         pivot_df = emp_df.pivot(index='Employee', columns='Week', values='Hours')
@@ -323,7 +323,7 @@ with tab3:
                                title="Weekly Hours Heatmap",
                                color_continuous_scale='RdYlGn',
                                aspect="auto")
-            st.plotly_chart(fig_heat, use_container_width=True)
+            st.plotly_chart(fig_heat, width="stretch")
 
 with tab4:
     st.subheader("Compliance Dashboard (5-Day Work System)")
@@ -363,7 +363,7 @@ with tab4:
             }
         ))
         fig_gauge.update_layout(height=400)
-        st.plotly_chart(fig_gauge, use_container_width=True)
+        st.plotly_chart(fig_gauge, width="stretch")
     
     with col2:
         # Quick stats
@@ -398,7 +398,7 @@ with tab4:
             at_risk_display = at_risk_display.drop('Met Requirements', axis=1)
             at_risk_display.columns = ['Avg Hours', 'Total Alerts', 'Compliance %']
             
-            st.dataframe(at_risk_display, use_container_width=True)
+            st.dataframe(at_risk_display, width="stretch")
         else:
             st.success("✅ No alert-enabled employees identified as consistently at-risk")
     
@@ -434,7 +434,7 @@ with tab5:
         export_end = st.date_input("Export End Date", end_date, key="export_end")
     
     # Generate report button
-    if st.button("📄 Generate Report", use_container_width=True):
+    if st.button("📄 Generate Report", width="stretch"):
         with st.spinner("Generating report..."):
             
             # Filter data for export
@@ -500,7 +500,7 @@ with tab5:
             
             # Show preview of data
             with st.expander("Preview Report Data"):
-                st.dataframe(report_data.head(20), use_container_width=True)
+                st.dataframe(report_data.head(20), width="stretch")
 
 # Help section
 with st.expander("❓ Help"):

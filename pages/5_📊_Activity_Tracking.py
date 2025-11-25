@@ -98,7 +98,7 @@ def preview_activity_alerts():
                 })
 
             df = pd.DataFrame(activity_data)
-            st.dataframe(df, use_container_width=True, hide_index=True)
+            st.dataframe(df, width="stretch", hide_index=True)
 
             # Download button
             if len(df) > 0:
@@ -124,7 +124,7 @@ def preview_activity_alerts():
                     labels={'x': 'Activity Percentage', 'y': 'Count'}
                 )
                 fig.add_vline(x=50, line_dash="dash", line_color="red", annotation_text="Threshold (50%)")
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
 
                 # Summary statistics
                 col1, col2, col3 = st.columns(3)
@@ -336,7 +336,7 @@ if st.sidebar.button("🔄 Analyze Activity", type="primary"):
                 },
                 title="Employee Performance Distribution"
             )
-            st.plotly_chart(fig_performance, use_container_width=True)
+            st.plotly_chart(fig_performance, width="stretch")
             
             # Activity insights
             st.subheader("💡 Activity Insights")
@@ -361,7 +361,7 @@ if st.sidebar.button("🔄 Analyze Activity", type="primary"):
                     })
                 
                 df_employees = pd.DataFrame(employee_data)
-                st.dataframe(df_employees, use_container_width=True)
+                st.dataframe(df_employees, width="stretch")
                 
                 # Download option
                 csv = df_employees.to_csv(index=False)
@@ -437,11 +437,11 @@ if st.sidebar.button("🔄 Analyze Activity", type="primary"):
             )
             fig_trend.add_hline(y=70, line_dash="dash", line_color="green", annotation_text="High Performance (70%)")
             fig_trend.add_hline(y=30, line_dash="dash", line_color="red", annotation_text="Low Performance (30%)")
-            st.plotly_chart(fig_trend, use_container_width=True)
+            st.plotly_chart(fig_trend, width="stretch")
             
             # Daily breakdown table
             st.subheader("📊 Daily Activity Details")
-            st.dataframe(df_daily, use_container_width=True)
+            st.dataframe(df_daily, width="stretch")
             
             # Most/Least productive days
             if report.most_productive_day and report.least_productive_day:
@@ -480,7 +480,7 @@ if st.sidebar.button("🔄 Analyze Activity", type="primary"):
                         color=list(most_productive.values()),
                         color_continuous_scale="Greens"
                     )
-                    st.plotly_chart(fig_most, use_container_width=True)
+                    st.plotly_chart(fig_most, width="stretch")
                 else:
                     st.info("No data available")
             
@@ -495,7 +495,7 @@ if st.sidebar.button("🔄 Analyze Activity", type="primary"):
                         color=list(least_productive.values()),
                         color_continuous_scale="Reds"
                     )
-                    st.plotly_chart(fig_least, use_container_width=True)
+                    st.plotly_chart(fig_least, width="stretch")
                 else:
                     st.info("No data available")
             
@@ -504,7 +504,7 @@ if st.sidebar.button("🔄 Analyze Activity", type="primary"):
             high_performers = patterns.get('high_performers', [])
             if high_performers:
                 hp_df = pd.DataFrame(high_performers)
-                st.dataframe(hp_df, use_container_width=True)
+                st.dataframe(hp_df, width="stretch")
             else:
                 st.info("No high performers identified in this period")
             
@@ -513,7 +513,7 @@ if st.sidebar.button("🔄 Analyze Activity", type="primary"):
             attention_needed = patterns.get('employees_needing_attention', [])
             if attention_needed:
                 attention_df = pd.DataFrame(attention_needed)
-                st.dataframe(attention_df, use_container_width=True)
+                st.dataframe(attention_df, width="stretch")
             else:
                 st.success("No employees need immediate attention")
         
@@ -532,7 +532,7 @@ if st.sidebar.button("🔄 Analyze Activity", type="primary"):
             
             if not df_export.empty:
                 st.subheader("📊 Comprehensive Activity Data")
-                st.dataframe(df_export, use_container_width=True)
+                st.dataframe(df_export, width="stretch")
                 
                 # Download options
                 col1, col2 = st.columns(2)
@@ -613,12 +613,12 @@ if workflow:
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        if st.button("🔍 Preview Activity Alerts", use_container_width=True, type="primary",
+        if st.button("🔍 Preview Activity Alerts", width="stretch", type="primary",
                     help="See who would receive activity alerts"):
             preview_activity_alerts()
 
     with col2:
-        if st.button("📧 Run Activity Monitoring", use_container_width=True, type="secondary",
+        if st.button("📧 Run Activity Monitoring", width="stretch", type="secondary",
                     help="Run activity monitoring and send alerts"):
             if st.session_state.get('confirm_activity_run', False):
                 results = run_activity_monitoring()
@@ -633,7 +633,7 @@ if workflow:
                     st.rerun()
 
     with col3:
-        if st.button("📊 Activity Statistics", use_container_width=True,
+        if st.button("📊 Activity Statistics", width="stretch",
                     help="View activity statistics"):
             show_activity_statistics()
 

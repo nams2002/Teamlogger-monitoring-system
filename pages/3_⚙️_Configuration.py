@@ -334,7 +334,7 @@ with tab2:
             'Note': note
         })
     
-    st.dataframe(leave_calc_data, use_container_width=True, hide_index=True)
+    st.dataframe(leave_calc_data, width="stretch", hide_index=True)
     
     # Alert logic explanation
     st.markdown("### Alert Logic")
@@ -507,7 +507,7 @@ with tab6:
     st.markdown("### 🧪 Component Connection Tests")
     
     # Test all connections button
-    if st.button("🔄 Run All Tests", use_container_width=True):
+    if st.button("🔄 Run All Tests", width="stretch"):
         with st.spinner("Testing all connections..."):
             
             # TeamLogger Test
@@ -561,7 +561,7 @@ with tab6:
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        if st.button("Test TeamLogger", use_container_width=True):
+        if st.button("Test TeamLogger", width="stretch"):
             result = test_teamlogger_connection()
             if result['status'] == 'success':
                 st.success(result['message'])
@@ -569,7 +569,7 @@ with tab6:
                 st.error(result['message'])
     
     with col2:
-        if st.button("Test Google Sheets", use_container_width=True):
+        if st.button("Test Google Sheets", width="stretch"):
             result = test_google_sheets_connection()
             if result['status'] == 'success':
                 st.success(result['message'])
@@ -577,7 +577,7 @@ with tab6:
                 st.error(result['message'])
     
     with col3:
-        if st.button("Test Email", use_container_width=True):
+        if st.button("Test Email", width="stretch"):
             result = test_email_service()
             if result['status'] == 'success':
                 st.success(result['message'])
@@ -585,7 +585,7 @@ with tab6:
                 st.error(result['message'])
     
     with col4:
-        if st.button("🤖 Test AI", use_container_width=True):
+        if st.button("🤖 Test AI", width="stretch"):
             result = test_ai_intelligence()
             if result['status'] == 'success':
                 st.success("🤖 AI Intelligence Working!")

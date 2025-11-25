@@ -318,7 +318,7 @@ def display_employee_details(employee_id, employee_name):
             }
             
             calc_df = pd.DataFrame(calc_data)
-            st.dataframe(calc_df, use_container_width=True, hide_index=True)
+            st.dataframe(calc_df, width="stretch", hide_index=True)
             
             # Show UNIFIED formula
             st.info(f"✅ **UNIFIED Formula:** Required = 8 × (5 - {leave_days}) = {status_info.get('required_hours', 40)} hours")
@@ -361,7 +361,7 @@ with st.expander("🧪 UNIFIED Calculation Validation", expanded=False):
         st.write("---")
 
 # Refresh data button
-if st.button("🔄 Refresh Data", use_container_width=False):
+if st.button("🔄 Refresh Data", width="content"):
     st.rerun()
 
 # Get employee data
@@ -476,7 +476,7 @@ if not df_employees.empty:
     # Display table with selection
     selected_rows = st.dataframe(
         filtered_df[['Name', 'Email', 'Manager', 'Hours Worked', 'Required Hours', 'Acceptable Hours', 'Leave Days', 'Working Days', 'Status']],
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         column_config=column_config,
         on_select="rerun",
@@ -544,9 +544,9 @@ if not df_employees.empty:
                                color_continuous_scale='Viridis')
                 fig.add_hline(y=37, line_dash="dash", line_color="orange", annotation_text="Acceptable (37h)")
                 fig.add_hline(y=40, line_dash="dash", line_color="green", annotation_text="Required (40h)")
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
                 
-                st.dataframe(manager_stats, use_container_width=True, hide_index=True)
+                st.dataframe(manager_stats, width="stretch", hide_index=True)
             else:
                 st.info("No alert-enabled employees found for manager analysis")
 
